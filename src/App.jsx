@@ -272,6 +272,8 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
   
   // Estat local per als inputs dels nous registres de PR
   const [prInputs, setPrInputs] = useState({});
+  // Estat pel cercador d'atletes
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Efecte per obrir un client automàticament des d'una notificació
   useEffect(() => {
@@ -341,7 +343,15 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
       // Ordenem de més antic a més nou
       history.sort((a, b) => a.date.localeCompare(b.date));
 
-      return { ...prev, prs: { ...prev.prs, [prName]: history } };
+      // Esborrem automàticament el recordatori programat perquè ja s'ha fet el test
+      const updatedReminders = { ...(prev.prReminders || {}) };
+      updatedReminders[prName] = '';
+
+      return { 
+        ...prev, 
+        prs: { ...prev.prs, [prName]: history },
+        prReminders: updatedReminders
+      };
     });
 
     // Netegem l'input d'aquest PR
@@ -379,6 +389,12 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
   const sortedWorkouts = [...savedWorkouts].sort((a, b) => b.date.localeCompare(a.date));
   const clientWorkouts = savedWorkouts.filter(w => w.clientId === editingClient?.id);
   const allPRs = [...STANDARD_PRS, ...(customPRs || [])];
+
+  // Filtrar clients per la barra de cerca
+  const filteredClients = clients.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   // --- CÀLCUL DE L'EVOLUCIÓ DE LES MARQUES ---
   const extractNumber = (str) => {
@@ -419,12 +435,26 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
          <button onClick={handleAddNewClient} className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white px-4 py-3 rounded-lg font-bold hover:bg-orange-500 transition-colors mb-6 shadow-sm">
             <UserPlus size={18} /> Nou Atleta
          </button>
-         <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 px-2">Llista de Clients</h2>
+         
+         <div className="mb-4">
+           <div className="relative">
+             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+             <input 
+               type="text" 
+               placeholder="Cerca per nom o email..." 
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+               className="w-full pl-9 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all"
+             />
+           </div>
+         </div>
+
+         <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 px-2">Llista de Clients</h2>
          <div className="flex-1 overflow-y-auto space-y-2">
-            {clients.length === 0 ? (
-              <p className="text-sm text-zinc-500 px-2 italic">Cap client registrat.</p>
+            {filteredClients.length === 0 ? (
+              <p className="text-sm text-zinc-500 px-2 italic text-center mt-4">Cap atleta trobat.</p>
             ) : (
-              clients.map(c => (
+              filteredClients.map(c => (
                 <button
                   key={c.id}
                   onClick={() => handleSelectClient(c)}
@@ -1457,7 +1487,7 @@ export default function ModumCoachApp() {
                       {sub.exercises.map((ex, exIndex) => (
                         <div key={ex.id} className="flex flex-wrap items-center gap-2 bg-white p-3 rounded shadow-sm border border-zinc-100 focus-within:border-orange-300 transition-colors">
                           <div className="flex-1 min-w-[200px]">
-                             <input type="text" list="library-exercises" value={ex.exerciseName || ''} onChange={(e) => updateExercise(blockKey, sub.id, ex.id, 'exerciseName', e.target.value)} placeholder="Escriu exercici..." className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded outline-none font-medium text-sm focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all" />
+                             <input type="text" list="library-exercises" value={ex.exerciseName || ''} onChange={(e) => updateExercise(blockKey, sub.id, ex.id, 'exerciseName', e.target.value)} placeholder="Escriu per cercar..." className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded outline-none font-medium text-sm focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all" />
                           </div>
                           <div className="flex items-center gap-1 w-20">
                             <input type="number" min="1" value={ex.sets} onChange={(e) => updateExercise(blockKey, sub.id, ex.id, 'sets', e.target.value)} className="w-full p-2 border border-zinc-200 rounded text-center text-sm" placeholder="Sèries" />
@@ -1495,105 +1525,133 @@ export default function ModumCoachApp() {
   );
 
   const renderTVView = () => {
-    const [y, m, d] = workout.date.split('-');
-    const formattedDateForTV = `${d}/${m}/${y}`;
+    if (tvWorkouts.length === 0) {
+      return (
+        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center font-sans">
+           <button onClick={() => setCurrentView('calendar')} className="absolute top-6 left-6 z-50 bg-white/10 hover:bg-orange-500 text-white p-3 rounded-full backdrop-blur-md transition-all opacity-20 hover:opacity-100 cursor-pointer border border-white/10" title="Tornar al Calendari"><ChevronLeft size={24} /> Tornar al calendari</button>
+           <MonitorPlay size={80} className="text-zinc-800 mb-6" />
+           <h2 className="text-3xl font-bold text-zinc-500">La cua de la TV està buida</h2>
+           <p className="text-zinc-600 mt-2">Ves al calendari i utilitza el botó "Enviar a TV" per projectar entrenaments.</p>
+        </div>
+      );
+    }
+
+    const isDual = tvWorkouts.length === 2;
 
     return (
-      <div className="min-h-screen bg-[#000000] text-white flex flex-col font-sans overflow-hidden">
-        <button onClick={() => setCurrentView('calendar')} className="absolute top-6 left-6 z-50 bg-white/10 hover:bg-orange-500 text-white p-3 rounded-full backdrop-blur-md transition-all opacity-20 hover:opacity-100 cursor-pointer border border-white/10" title="Tornar al Calendari"><ChevronLeft size={24} /></button>
+      <div className="relative min-h-full w-full bg-[#000000] text-white flex flex-col lg:flex-row font-sans p-2 sm:p-4 gap-4 overflow-y-auto">
+        {/* Tornar botó */}
+        <button onClick={() => setCurrentView('calendar')} className="fixed top-4 left-4 z-50 bg-black/50 hover:bg-orange-500 text-white p-2 md:p-3 rounded-full backdrop-blur-md transition-all border border-white/10 shadow-lg" title="Tornar al Calendari">
+          <ChevronLeft size={24} />
+        </button>
 
-        <div className="flex-1 flex flex-col w-full h-[100vh] p-[3vh] md:p-[4vh] lg:p-[5vh] gap-[4vh]">
-          <header className="flex justify-between items-center px-[4vh] py-[3vh] bg-[#1c1c1e] rounded-[3vh] border border-white/5 shadow-2xl h-[12vh] shrink-0">
-            <div className="w-1/3">
-              <h1 className="text-[4vh] font-black text-white uppercase tracking-tight leading-none">{workout.sessionName}</h1>
-            </div>
-            <div className="w-1/3 flex justify-center items-center gap-[2vh]">
-              <ModumLogoIcon className="w-[8vh] h-[8vh]" />
-              <span className="text-[4.5vh] font-bold tracking-widest uppercase leading-none">MODUM MOVIMENT</span>
-            </div>
-            <div className="w-1/3 flex justify-end items-center gap-[2vh] text-zinc-400">
-              <CalendarIcon className="w-[5vh] h-[5vh]" />
-              <span className="text-[3.5vh] font-medium tracking-tight leading-none">{formattedDateForTV}</span>
-            </div>
-          </header>
+        {tvWorkouts.map((workoutData, idx) => {
+          const [y, m, d] = workoutData.date.split('-');
+          const formattedDateForTV = `${d}/${m}/${y}`;
 
-          <main className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-[4vh] overflow-hidden min-h-0">
-            <div className="flex flex-col gap-[3vh] overflow-hidden h-full">
-              {workout.blocks.warmup.length > 0 && (
-                <div className="flex items-center gap-[2vh] shrink-0 h-[4vh]">
-                   <h2 className="text-[3vh] font-black text-zinc-500 uppercase tracking-widest leading-none">Escalfament</h2>
-                   <div className="flex-1 h-px bg-white/10"></div>
+          return (
+            <div key={workoutData.id} className={`flex flex-col ${isDual ? 'w-full lg:w-1/2' : 'w-full'} gap-4`}>
+              
+              <header className={`flex flex-col sm:flex-row justify-between items-center px-6 py-4 bg-[#1c1c1e] rounded-3xl border border-white/5 shadow-2xl shrink-0 gap-4 sm:gap-0 mt-14 sm:mt-0`}>
+                <div className="w-full sm:w-1/3 text-center sm:text-left">
+                  <h1 className={`font-black text-white uppercase tracking-tight leading-none truncate ${isDual ? 'text-2xl lg:text-3xl' : 'text-3xl lg:text-5xl'}`}>{workoutData.sessionName}</h1>
                 </div>
-              )}
-              <div className="flex-1 flex flex-col gap-[3vh] overflow-y-auto pr-4" style={{ scrollbarWidth: 'none' }}>
-                {workout.blocks.warmup.map((sub, index) => (
-                  <div key={sub.id} className="bg-[#1c1c1e] rounded-[3vh] p-[4vh] border border-white/5 shrink-0">
-                    <h3 className="text-[3.5vh] font-bold text-white mb-[3vh] tracking-tight flex items-center gap-[1.5vh] leading-none">
-                      <div className="w-[1vh] h-[4vh] bg-orange-500 rounded-full"></div>{sub.title}
-                    </h3>
-                    <ul className="flex flex-col gap-[2vh]">
-                      {sub.exercises.map((ex, i) => (
-                        <li key={i} className="flex items-center gap-[2vh] py-[1.5vh] border-b border-white/5 last:border-0 last:pb-0">
-                          <div className="font-bold text-orange-400 text-[3.5vh] w-[14vh] shrink-0 text-right leading-none">
-                            {ex.sets > 1 ? `${ex.sets}x ` : ''}{ex.reps} {ex.unit !== 'reps' ? ex.unit : ''}
-                          </div>
-                          <div className="w-[1vh] h-[1vh] rounded-full bg-zinc-600 shrink-0"></div>
-                          <div className="text-zinc-200 text-[3.5vh] font-medium tracking-tight leading-none">{ex.exerciseName || 'SENSE NOM'}</div>
-                          {ex.notes && <div className="text-zinc-500 text-[2.5vh] ml-auto tracking-tight font-medium leading-none">{ex.notes}</div>}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-              {(workout.bottomNotes || workout.blocks.accessories.length > 0) && (
-                <div className="bg-[#1c1c1e] rounded-[3vh] p-[3vh] border border-white/5 flex items-center gap-[3vh] shrink-0 h-[12vh]">
-                  <div className="bg-orange-500/10 p-[1.5vh] rounded-[2vh] shrink-0">
-                    <Clock className="text-orange-500 w-[5vh] h-[5vh]" />
-                  </div>
-                  <p className="text-[3.5vh] font-medium text-zinc-300 tracking-tight leading-snug">{workout.bottomNotes || "Complements al finalitzar la sessió."}</p>
+                <div className="w-full sm:w-1/3 flex justify-center items-center gap-3">
+                  <ModumLogoIcon className={isDual ? 'w-8 h-8 lg:w-10 lg:h-10' : 'w-10 h-10 lg:w-14 lg:h-14'} />
+                  <span className={`font-bold tracking-widest uppercase leading-none ${isDual ? 'text-xl lg:text-2xl' : 'text-2xl lg:text-4xl'}`}>MODUM MOVIMENT</span>
                 </div>
-              )}
-            </div>
+                <div className="w-full sm:w-1/3 flex justify-center sm:justify-end items-center gap-3 text-zinc-400">
+                  <span className={`font-medium tracking-tight leading-none ${isDual ? 'text-lg' : 'text-xl lg:text-2xl'}`}>{formattedDateForTV}</span>
+                  <button onClick={() => setTvWorkouts(prev => prev.filter(w => w.id !== workoutData.id))} className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white p-2 rounded-lg transition-colors flex items-center gap-1" title="Treure de la TV">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              </header>
 
-            <div className="flex flex-col h-full bg-[#1c1c1e] rounded-[4vh] p-[5vh] border border-white/5 shadow-2xl overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-              {workout.blocks.wod.length > 0 && (
-                <div className="flex items-center gap-[2vh] shrink-0 mb-[4vh]">
-                   <h2 className="text-[3vh] font-black text-zinc-500 uppercase tracking-widest leading-none">WOD</h2>
-                   <div className="flex-1 h-px bg-white/10"></div>
-                </div>
-              )}
-              {workout.blocks.wod.map((wodBlock, index) => (
-                <div key={wodBlock.id} className="flex-1 flex flex-col h-full shrink-0">
-                  <div className="flex items-center gap-[3vh] mb-[5vh] pb-[4vh] border-b border-white/5">
-                    <div className="bg-gradient-to-br from-orange-400 to-orange-600 p-[2.5vh] rounded-[2.5vh] shadow-lg shadow-orange-500/20">
-                       <Target className="text-white w-[6vh] h-[6vh]" strokeWidth={2.5} />
+              <main className={`flex-1 flex ${isDual ? 'flex-col' : 'flex-col xl:flex-row'} gap-4 min-h-0`}>
+                
+                {/* COLUMNA ESCALFAMENT */}
+                <div className={`flex flex-col gap-4 overflow-hidden ${isDual ? 'shrink-0 max-h-[45%]' : 'shrink-0 xl:w-1/2 xl:h-full'}`}>
+                  {workoutData.blocks.warmup.length > 0 && (
+                    <div className="flex items-center gap-4 shrink-0">
+                       <h2 className={`font-black text-zinc-500 uppercase tracking-widest leading-none ${isDual ? 'text-xl' : 'text-2xl'}`}>Escalfament</h2>
+                       <div className="flex-1 h-px bg-white/10"></div>
                     </div>
-                    <h2 className="text-[5.5vh] font-black tracking-tight text-white uppercase leading-none">{wodBlock.title}</h2>
-                  </div>
-                  <div className="flex-1 flex flex-col justify-center gap-[4vh]">
-                    {wodBlock.exercises.map((ex, i) => (
-                      <div key={i} className="flex items-center gap-[4vh] p-[4vh] rounded-[3vh] bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
-                        <div className="w-[10vh] h-[10vh] rounded-full bg-zinc-800 flex items-center justify-center shrink-0 border border-white/10 shadow-inner">
-                          <span className="text-orange-400 font-bold text-[5vh] leading-none">{i + 1}</span>
-                        </div>
-                        <div className="flex flex-col justify-center">
-                          <div className="flex items-baseline gap-[3vh]">
-                            <span className="text-orange-400 font-bold text-[5.5vh] leading-none">
-                              {ex.sets > 1 ? `${ex.sets}x ` : ''}{ex.reps} {ex.unit !== 'reps' ? ex.unit : ''}
-                            </span>
-                            <span className="text-[5.5vh] font-bold text-white tracking-tight leading-none">{ex.exerciseName || 'SENSE NOM'}</span>
-                          </div>
-                          {ex.notes && <span className="text-zinc-400 text-[3vh] mt-[1.5vh] tracking-tight font-medium leading-none">{ex.notes}</span>}
-                        </div>
+                  )}
+                  <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}>
+                    {workoutData.blocks.warmup.map((sub) => (
+                      <div key={sub.id} className="bg-[#1c1c1e] rounded-2xl p-5 md:p-6 border border-white/5 shrink-0 shadow-lg">
+                        <h3 className={`font-bold text-white mb-4 tracking-tight flex items-center gap-3 leading-none uppercase ${isDual ? 'text-xl' : 'text-2xl'}`}>
+                          <div className={`w-2 bg-orange-500 rounded-full ${isDual ? 'h-6' : 'h-8'}`}></div>{sub.title}
+                        </h3>
+                        <ul className="flex flex-col gap-3">
+                          {sub.exercises.map((ex, i) => (
+                            <li key={i} className="flex items-center gap-4 py-2 border-b border-white/5 last:border-0 last:pb-0">
+                              <div className={`font-bold text-orange-400 shrink-0 text-right leading-none ${isDual ? 'text-lg md:text-xl w-20 md:w-24' : 'text-xl md:text-3xl w-24 md:w-32'}`}>
+                                {ex.sets > 1 ? `${ex.sets}x ` : ''}{ex.reps} {ex.unit !== 'reps' ? ex.unit : ''}
+                              </div>
+                              <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0"></div>
+                              <div className={`text-zinc-200 font-medium tracking-tight leading-tight ${isDual ? 'text-lg md:text-xl' : 'text-xl md:text-3xl'}`}>{ex.exerciseName || 'SENSE NOM'}</div>
+                              {ex.notes && <div className={`text-zinc-500 ml-auto tracking-tight font-medium leading-tight text-right ${isDual ? 'text-sm md:text-base' : 'text-lg md:text-xl'}`}>{ex.notes}</div>}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     ))}
                   </div>
+                  
+                  {(workoutData.bottomNotes || workoutData.blocks.accessories.length > 0) && (
+                    <div className="bg-[#1c1c1e] rounded-2xl p-4 md:p-5 border border-white/5 flex items-center gap-4 shrink-0 shadow-lg">
+                      <div className="bg-orange-500/10 p-3 rounded-xl shrink-0">
+                        <Clock className={`text-orange-500 ${isDual ? 'w-6 h-6' : 'w-8 h-8'}`} />
+                      </div>
+                      <p className={`font-medium text-zinc-300 tracking-tight leading-snug ${isDual ? 'text-base md:text-lg' : 'text-xl md:text-2xl'}`}>{workoutData.bottomNotes || "Complements al finalitzar."}</p>
+                    </div>
+                  )}
                 </div>
-              ))}
+
+                {/* COLUMNA WOD */}
+                <div className={`flex flex-col bg-[#1c1c1e] rounded-3xl p-5 md:p-8 shadow-2xl overflow-y-auto ${isDual ? 'flex-1' : 'flex-1 xl:w-1/2 xl:h-full'}`} style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}>
+                  {workoutData.blocks.wod.length > 0 && (
+                    <div className="flex items-center gap-4 shrink-0 mb-6">
+                       <h2 className={`font-black text-zinc-500 uppercase tracking-widest leading-none ${isDual ? 'text-xl' : 'text-2xl'}`}>WOD</h2>
+                       <div className="flex-1 h-px bg-white/10"></div>
+                    </div>
+                  )}
+                  {workoutData.blocks.wod.map((wodBlock) => (
+                    <div key={wodBlock.id} className="flex-1 flex flex-col shrink-0 mb-8 last:mb-0">
+                      <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/5">
+                        <div className="bg-gradient-to-br from-orange-400 to-orange-600 p-3 md:p-4 rounded-2xl shadow-lg shadow-orange-500/20">
+                           <Target className={`text-white ${isDual ? 'w-6 h-6 md:w-8 md:h-8' : 'w-8 h-8 md:w-10 md:h-10'}`} strokeWidth={2.5} />
+                        </div>
+                        <h2 className={`font-black tracking-tight text-white uppercase leading-none ${isDual ? 'text-2xl md:text-3xl' : 'text-3xl md:text-5xl'}`}>{wodBlock.title}</h2>
+                      </div>
+                      <div className="flex-1 flex flex-col justify-center gap-4">
+                        {wodBlock.exercises.map((ex, i) => (
+                          <div key={i} className={`flex items-center gap-4 p-4 md:p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors`}>
+                            <div className={`rounded-full bg-zinc-800 flex items-center justify-center shrink-0 border border-white/10 shadow-inner ${isDual ? 'w-10 h-10 md:w-14 md:h-14' : 'w-14 h-14 md:w-20 md:h-20'}`}>
+                              <span className={`text-orange-400 font-bold leading-none ${isDual ? 'text-xl md:text-2xl' : 'text-2xl md:text-4xl'}`}>{i + 1}</span>
+                            </div>
+                            <div className="flex flex-col justify-center flex-1">
+                              <div className="flex items-baseline gap-3 flex-wrap">
+                                <span className={`text-orange-400 font-bold leading-none ${isDual ? 'text-xl md:text-3xl' : 'text-2xl md:text-5xl'}`}>
+                                  {ex.sets > 1 ? `${ex.sets}x ` : ''}{ex.reps} {ex.unit !== 'reps' ? ex.unit : ''}
+                                </span>
+                                <span className={`font-bold text-white tracking-tight leading-tight ${isDual ? 'text-xl md:text-3xl' : 'text-2xl md:text-5xl'}`}>{ex.exerciseName || 'SENSE NOM'}</span>
+                              </div>
+                              {ex.notes && <span className={`text-zinc-400 mt-2 tracking-tight font-medium leading-snug ${isDual ? 'text-sm md:text-lg' : 'text-lg md:text-2xl'}`}>{ex.notes}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+              </main>
             </div>
-          </main>
-        </div>
+          );
+        })}
       </div>
     );
   };
@@ -1676,21 +1734,36 @@ export default function ModumCoachApp() {
                       <p className="p-6 text-sm text-zinc-500 text-center">Cap test a la vista. Les alertes sortiran aquí 7 dies abans de la data programada.</p>
                     ) : (
                       notificationsList.map((rem, i) => (
-                        <button 
-                          key={i} 
-                          onClick={() => { 
-                            setClientToOpen(rem.clientId); 
-                            setCurrentView('clients'); 
-                            setShowNotifications(false); 
-                          }} 
-                          className="w-full text-left p-4 hover:bg-orange-50 border-b border-zinc-100 flex flex-col gap-1 transition-colors"
-                        >
-                           <span className="text-sm font-black text-zinc-800">{rem.clientName}</span>
-                           <span className="text-xs font-bold text-zinc-600">{rem.pr}</span>
-                           <span className={`text-[11px] font-bold flex items-center gap-1 ${rem.isOverdue ? 'text-red-500' : (rem.isToday ? 'text-orange-500' : 'text-zinc-500')}`}>
-                             {rem.isOverdue ? <><Clock size={12}/> Fora de termini ({rem.date})</> : (rem.isToday ? 'Programat per AVUI' : `Properament (${rem.date})`)}
-                           </span>
-                        </button>
+                        <div key={i} className="flex border-b border-zinc-100 hover:bg-orange-50 transition-colors">
+                          <button 
+                            onClick={() => { 
+                              setClientToOpen(rem.clientId); 
+                              setCurrentView('clients'); 
+                              setShowNotifications(false); 
+                            }} 
+                            className="w-full text-left p-4 flex flex-col gap-1"
+                          >
+                             <span className="text-sm font-black text-zinc-800">{rem.clientName}</span>
+                             <span className="text-xs font-bold text-zinc-600">{rem.pr}</span>
+                             <span className={`text-[11px] font-bold flex items-center gap-1 ${rem.isOverdue ? 'text-red-500' : (rem.isToday ? 'text-orange-500' : 'text-zinc-500')}`}>
+                               {rem.isOverdue ? <><Clock size={12}/> Fora de termini ({rem.date})</> : (rem.isToday ? 'Programat per AVUI' : `Properament (${rem.date})`)}
+                             </span>
+                          </button>
+                          <button 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await setDoc(doc(db, 'clients', rem.clientId), {
+                                  prReminders: { [rem.pr]: '' }
+                                }, { merge: true });
+                              } catch (err) { console.error(err); }
+                            }}
+                            className="p-4 text-zinc-400 hover:text-red-500 flex items-center justify-center transition-colors"
+                            title="Marcar com a fet / Esborrar"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
                       ))
                     )}
                   </div>
