@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Plus, Trash2, Save, MonitorPlay, Smartphone, Activity, Clock, Target, ChevronLeft, ChevronRight, CalendarDays, List, BookOpen, Folder, Search, CheckCircle2, Download, X, FileSpreadsheet, Copy, LogOut, Users, UserPlus, Trophy, TrendingUp, Share2, Flame, Bell, BarChart3, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Trash2, Save, MonitorPlay, Smartphone, Activity, Clock, Target, ChevronLeft, ChevronRight, CalendarDays, List, BookOpen, Folder, Search, CheckCircle2, Download, X, FileSpreadsheet, Copy, LogOut, Users, UserPlus, Trophy, TrendingUp, Share2, Flame, Bell, BarChart3, FileText, Zap } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 
-// --- CONFIGURACIÓ DE FIREBASE (Les teves claus) ---
+// --- CONFIGURACIÓ DE FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyB65QVSPhG5sgNw4u4I5SoC_jPmhM3HZkk",
   authDomain: "modum-coach.firebaseapp.com",
@@ -21,7 +21,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- BASE DE DADES INICIAL (Per si la BD està buida) ---
+// --- BASE DE DADES INICIAL ---
 const initialExerciseLibrary = [
   { id: 'ex2', name: 'Run Syn', category: 'Cardio', defaultUnit: 'm' },
   { id: 'ex3', name: 'Row', category: 'Cardio', defaultUnit: 'cal' },
@@ -62,6 +62,25 @@ const STANDARD_PRS = [
   'Max Cal Row (1 min)', 'Max Cal SkiErg (1 min)', 'Max Cal Assault (1 min)',
   '5K Run', 'Max Pull-ups (Unbroken)'
 ];
+
+// --- BASE DE DADES NORMATIVA UNIFICADA (MOCK) ---
+const NORMATIVE_DB = {
+  'General': { 'General': { cmj: { mu: 40, sigma: 5 }, iso: { mu: 25, sigma: 4 } } },
+  'Futbol': {
+    'General': { cmj: { mu: 43, sigma: 5 }, iso: { mu: 28, sigma: 4 } },
+    'Davanter': { cmj: { mu: 45, sigma: 4 }, iso: { mu: 28, sigma: 3 } },
+    'Defensa': { cmj: { mu: 42, sigma: 5 }, iso: { mu: 30, sigma: 4 } },
+  },
+  'Bàsquet': {
+    'General': { cmj: { mu: 46, sigma: 5 }, iso: { mu: 26, sigma: 4 } },
+    'Base': { cmj: { mu: 50, sigma: 6 }, iso: { mu: 24, sigma: 3 } },
+    'Pívot': { cmj: { mu: 42, sigma: 4 }, iso: { mu: 32, sigma: 5 } }
+  },
+  'CrossFit': {
+    'General': { cmj: { mu: 45, sigma: 5 }, iso: { mu: 35, sigma: 5 } },
+    'Atleta': { cmj: { mu: 45, sigma: 5 }, iso: { mu: 35, sigma: 5 } }
+  }
+};
 
 // --- ETIQUETES DE SESSIÓ ---
 const WORKOUT_TAGS = [
@@ -129,7 +148,6 @@ const normalizePRHistory = (prData) => {
   return [];
 };
 
-
 // --- COMPONENT DE BIBLIOTECA ---
 function LibraryView({ exerciseLibrary, saveExerciseToDB }) {
   const baseCategories = ['Genoll', 'Espatlla', 'Colze', 'Mà/Canell', 'Peu/Turmell', 'Core', 'Cardio', 'Força Inferior', 'Força Superior'];
@@ -166,92 +184,88 @@ function LibraryView({ exerciseLibrary, saveExerciseToDB }) {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-100 font-sans text-zinc-900 flex flex-col md:flex-row">
-      <div className="w-full md:w-72 bg-white border-r border-zinc-200 p-4 flex flex-col h-auto md:h-[calc(100vh-56px)] shrink-0">
-         <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 px-2">Carpetes d'Exercicis</h2>
-         <div className="flex-1 overflow-y-auto space-y-1">
-            {allCategories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 text-sm font-medium transition-colors ${selectedCategory === cat ? 'bg-orange-100 text-orange-800' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'}`}
-              >
-                <Folder size={18} className={selectedCategory === cat ? 'text-orange-500' : 'text-zinc-400'} />
-                {cat}
-              </button>
-            ))}
-         </div>
-      </div>
-
-      <div className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-56px)]">
-         <div className="max-w-4xl mx-auto space-y-6">
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-zinc-200">
-               <div className="relative w-full md:w-96">
-                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                 <input 
-                   type="text" 
-                   placeholder="Cerca un exercici..." 
-                   value={searchTerm}
-                   onChange={(e) => setSearchTerm(e.target.value)}
-                   className="w-full pl-10 pr-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                 />
+    <div className="min-h-full bg-zinc-100 font-sans text-zinc-900 flex flex-col relative">
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto">
+         <div className="max-w-5xl mx-auto space-y-6 pb-20">
+            
+            {/* TOP BAR BIBLIOTECA (Sense barra lateral) */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-zinc-200">
+               <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1">
+                 <div className="relative flex-1 md:max-w-sm">
+                   <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                   <input 
+                     type="text" 
+                     placeholder="Cerca un exercici..." 
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                     className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all"
+                   />
+                 </div>
+                 <select 
+                   value={selectedCategory} 
+                   onChange={(e) => setSelectedCategory(e.target.value)} 
+                   className="flex-1 p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-medium text-sm md:max-w-[220px] cursor-pointer"
+                 >
+                   {allCategories.map(cat => (
+                     <option key={cat} value={cat}>{cat}</option>
+                   ))}
+                 </select>
                </div>
                <button 
                  onClick={() => setIsAdding(!isAdding)}
-                 className="w-full md:w-auto flex items-center justify-center gap-2 bg-zinc-900 text-white px-6 py-2 rounded-lg font-medium hover:bg-orange-500 transition-colors"
+                 className="w-full md:w-auto flex items-center justify-center gap-2 bg-zinc-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-orange-500 transition-colors shrink-0"
                >
                  {isAdding ? 'Cancel·lar' : <><Plus size={18} /> Nou Exercici</>}
                </button>
             </div>
 
             {isAdding && (
-              <form onSubmit={handleSaveNewExercise} className="bg-orange-50 border border-orange-200 p-6 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-4">
+              <form onSubmit={handleSaveNewExercise} className="bg-orange-50 border border-orange-200 p-6 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-4">
                 <h3 className="font-bold text-orange-900 mb-4 flex items-center gap-2">
                   <CheckCircle2 size={18} /> Afegeix a la Biblioteca Cloud
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-orange-800 mb-1">Nom de l'Exercici</label>
-                    <input required type="text" value={newExName} onChange={(e)=>setNewExName(e.target.value)} className="w-full p-2 border border-orange-200 rounded outline-none focus:border-orange-500" placeholder="Ex: Press Militar" />
+                    <input required type="text" value={newExName} onChange={(e)=>setNewExName(e.target.value)} className="w-full p-2.5 border border-orange-200 rounded-xl outline-none focus:border-orange-500" placeholder="Ex: Press Militar" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-orange-800 mb-1">Carpeta / Categoria</label>
-                    <input list="categories-list" required value={newExCategory} onChange={(e)=>setNewExCategory(e.target.value)} className="w-full p-2 border border-orange-200 rounded outline-none focus:border-orange-500" />
+                    <input list="categories-list" required value={newExCategory} onChange={(e)=>setNewExCategory(e.target.value)} className="w-full p-2.5 border border-orange-200 rounded-xl outline-none focus:border-orange-500" />
                     <datalist id="categories-list">
                       {allCategories.filter(c => c !== 'Totes').map(c => <option key={c} value={c} />)}
                     </datalist>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-orange-800 mb-1">Unitat per Defecte</label>
-                    <select value={newExUnit} onChange={(e)=>setNewExUnit(e.target.value)} className="w-full p-2 border border-orange-200 rounded outline-none bg-white">
+                    <select value={newExUnit} onChange={(e)=>setNewExUnit(e.target.value)} className="w-full p-2.5 border border-orange-200 rounded-xl outline-none bg-white">
                       {unitOptions.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <button type="submit" className="bg-orange-500 text-white px-6 py-2 rounded font-bold hover:bg-orange-600">Guardar Exercici</button>
+                  <button type="submit" className="bg-orange-500 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-orange-600">Guardar Exercici</button>
                 </div>
               </form>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                {filteredExercises.length === 0 ? (
-                 <div className="col-span-full py-12 text-center text-zinc-400">
-                   No s'han trobat exercicis en aquesta carpeta.
+                 <div className="col-span-full py-12 text-center text-zinc-400 bg-white rounded-2xl border border-zinc-200 border-dashed">
+                   <Folder size={48} className="mx-auto mb-4 opacity-20" />
+                   <p className="text-lg">No s'han trobat exercicis en aquesta carpeta o cerca.</p>
                  </div>
                ) : (
                  filteredExercises.map(ex => (
-                   <div key={ex.id} className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm flex justify-between items-center hover:border-orange-300 transition-colors">
-                     <div>
-                       <div className="font-bold text-zinc-900 text-lg">{ex.name}</div>
-                       <div className="text-xs font-medium text-zinc-500 mt-1 flex gap-2">
-                         <span className="bg-zinc-100 px-2 py-0.5 rounded text-zinc-600 flex items-center gap-1">
-                           <Folder size={12} /> {ex.category}
-                         </span>
-                         <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded">
-                           Unitat: {ex.defaultUnit}
-                         </span>
-                       </div>
+                   <div key={ex.id} className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm flex flex-col justify-center hover:border-orange-300 hover:shadow-md transition-all">
+                     <div className="font-bold text-zinc-900 text-lg mb-2 truncate">{ex.name}</div>
+                     <div className="flex justify-between items-center mt-auto">
+                       <span className="bg-zinc-100 px-2.5 py-1 rounded-md text-zinc-600 flex items-center gap-1.5 text-xs font-medium">
+                         <Folder size={12} /> <span className="truncate max-w-[100px]">{ex.category}</span>
+                       </span>
+                       <span className="bg-orange-50 text-orange-700 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider">
+                         {ex.defaultUnit}
+                       </span>
                      </div>
                    </div>
                  ))
@@ -270,18 +284,24 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
   const [workoutToAssign, setWorkoutToAssign] = useState('');
   const [newPRName, setNewPRName] = useState('');
   
-  // Estat local per als inputs dels nous registres de PR
+  // PESTANYES DE LA FITXA
+  const [clientTab, setClientTab] = useState('general'); // 'general' | 'biomechanics'
+
+  // Estat local per als inputs dels nous registres de PR i buscador
   const [prInputs, setPrInputs] = useState({});
-  // Estat pel cercador d'atletes
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Efecte per obrir un client automàticament des d'una notificació
+  // Estats per al Motor Analític Biomecànic
+  const [bioInputs, setBioInputs] = useState({
+    age: '', weight: '', sport: 'General', position: 'General', cmj: '', iso: ''
+  });
+  const [bioResult, setBioResult] = useState(null);
+
   useEffect(() => {
     if (clientToOpen) {
       const c = clients.find(cl => cl.id === clientToOpen);
       if (c) {
-        setSelectedClientId(c.id);
-        setEditingClient({ ...c });
+        handleSelectClient(c);
       }
     }
   }, [clientToOpen, clients]);
@@ -293,23 +313,39 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
       email: '',
       phone: '',
       prs: {},
-      prReminders: {}, // Dates dels tests
+      prReminders: {},
+      biomechanics: { age: '', weight: '', sport: 'General', position: 'General', cmj: '', iso: '' },
       assignedWorkouts: []
     };
     setEditingClient(newClient);
     setSelectedClientId(newClient.id);
+    setClientTab('general');
     setPrInputs({});
+    setBioInputs({ age: '', weight: '', sport: 'General', position: 'General', cmj: '', iso: '' });
+    setBioResult(null);
   };
 
   const handleSelectClient = (client) => {
     setSelectedClientId(client.id);
-    setEditingClient({ ...client }); // Clonem per editar
+    const clientData = { 
+      ...client, 
+      biomechanics: client.biomechanics || { age: '', weight: '', sport: 'General', position: 'General', cmj: '', iso: '' }
+    };
+    setEditingClient(clientData);
+    setClientTab('general');
     setPrInputs({});
+    setBioInputs(clientData.biomechanics);
+    setBioResult(null);
   };
 
   const handleSave = async () => {
     if (editingClient) {
-      await saveClientToDB(editingClient);
+      const finalClientData = {
+        ...editingClient,
+        biomechanics: bioInputs
+      };
+      await saveClientToDB(finalClientData);
+      setEditingClient(finalClientData);
       alert('Perfil guardat correctament.');
     }
   };
@@ -320,6 +356,56 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
       setSelectedClientId(null);
       setEditingClient(null);
     }
+  };
+
+  // --- MÈTODES PER AL MOTOR BIOMECÀNIC ---
+  const handleBioInputChange = (field, value) => {
+    setBioInputs(prev => ({ ...prev, [field]: value }));
+  };
+
+  const calculateBiomechanics = () => {
+    const weight = parseFloat(bioInputs.weight);
+    const cmj = parseFloat(bioInputs.cmj);
+    const iso = parseFloat(bioInputs.iso);
+
+    if (!weight || !cmj || !iso) {
+      alert("Falten dades necessàries per fer l'avaluació biomecànica (Pes, CMJ i ISO).");
+      return;
+    }
+
+    const forceRel = iso / weight;
+    const sportDb = NORMATIVE_DB[bioInputs.sport] || NORMATIVE_DB['General'];
+    const norm = sportDb[bioInputs.position] || sportDb['General'] || NORMATIVE_DB['General']['General'];
+
+    const zCmj = (cmj - norm.cmj.mu) / norm.cmj.sigma;
+    const zIso = (forceRel - norm.iso.mu) / norm.iso.sigma;
+
+    let quadrant = '';
+    let explanation = '';
+
+    if (zCmj > 0 && zIso > 0) {
+        quadrant = 'SUPERMAN';
+        explanation = 'Alt CMJ i Alt ISO. Perfil òptim de força i velocitat explosiva. Està completament balancejat.';
+    } else if (zCmj <= 0 && zIso > 0) {
+        quadrant = 'HULK';
+        explanation = 'Baix CMJ i Alt ISO. Excés de força base, falta traduir-la en potència explosiva. Prioritzar pliometria i velocitat.';
+    } else if (zCmj > 0 && zIso <= 0) {
+        quadrant = 'FLASH';
+        explanation = 'Alt CMJ i Baix ISO. Molt reactiu però poca producció de força màxima neta. Prioritzar força pesada i estructural.';
+    } else {
+        quadrant = 'NORMAL / DEFICIENT';
+        explanation = 'Baix CMJ i Baix ISO. Dèficit global. Necessita un bloc de desenvolupament de les capacitats físiques bàsiques (força + potència).';
+    }
+
+    const dateStr = getLocalISOString(new Date());
+    const csv = `${dateStr}, ${editingClient.name}, ${bioInputs.age || 'N/A'}, ${bioInputs.sport || 'General'}, ${bioInputs.position || 'General'}, ${weight}, ${forceRel.toFixed(2)}, ${cmj}, ${zIso.toFixed(2)}, ${zCmj.toFixed(2)}, ${quadrant}`;
+
+    setBioResult({ forceRel, zCmj, zIso, quadrant, explanation, csv });
+    
+    setEditingClient(prev => ({
+      ...prev,
+      biomechanics: bioInputs
+    }));
   };
 
   const updatePrInput = (prName, field, value) => {
@@ -340,10 +426,8 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
         date: input.date || todayString,
         value: input.value
       });
-      // Ordenem de més antic a més nou
       history.sort((a, b) => a.date.localeCompare(b.date));
 
-      // Esborrem automàticament el recordatori programat perquè ja s'ha fet el test
       const updatedReminders = { ...(prev.prReminders || {}) };
       updatedReminders[prName] = '';
 
@@ -354,7 +438,6 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
       };
     });
 
-    // Netegem l'input d'aquest PR
     setPrInputs(prev => ({ ...prev, [prName]: { date: todayString, value: '' } }));
   };
 
@@ -385,18 +468,15 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
     removeWorkoutFromClient(idToRemove);
   };
 
-  // Ordenar entrenaments pel desplegable (més recents primer)
   const sortedWorkouts = [...savedWorkouts].sort((a, b) => b.date.localeCompare(a.date));
   const clientWorkouts = savedWorkouts.filter(w => w.clientId === editingClient?.id);
   const allPRs = [...STANDARD_PRS, ...(customPRs || [])];
 
-  // Filtrar clients per la barra de cerca
   const filteredClients = clients.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // --- CÀLCUL DE L'EVOLUCIÓ DE LES MARQUES ---
   const extractNumber = (str) => {
     if (!str) return 0;
     const match = String(str).replace(',', '.').match(/[\d]+[.,]?[\d]*/);
@@ -407,7 +487,6 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
   if (editingClient?.prs) {
     Object.entries(editingClient.prs).forEach(([prName, prData]) => {
       const history = normalizePRHistory(prData);
-      // Necessitem almenys 2 registres per poder comparar
       if (history.length >= 2) {
         const prevRecord = history[history.length - 2];
         const currRecord = history[history.length - 1];
@@ -430,306 +509,440 @@ function ClientsView({ clients, savedWorkouts, saveClientToDB, deleteClientFromD
   }
 
   return (
-    <div className="min-h-screen bg-zinc-100 font-sans text-zinc-900 flex flex-col md:flex-row">
-      <div className="w-full md:w-80 bg-white border-r border-zinc-200 p-4 flex flex-col h-auto md:h-[calc(100vh-56px)] shrink-0">
-         <button onClick={handleAddNewClient} className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white px-4 py-3 rounded-lg font-bold hover:bg-orange-500 transition-colors mb-6 shadow-sm">
-            <UserPlus size={18} /> Nou Atleta
-         </button>
-         
-         <div className="mb-4">
-           <div className="relative">
-             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-             <input 
-               type="text" 
-               placeholder="Cerca per nom o email..." 
-               value={searchQuery}
-               onChange={(e) => setSearchQuery(e.target.value)}
-               className="w-full pl-9 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all"
-             />
-           </div>
-         </div>
-
-         <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 px-2">Llista de Clients</h2>
-         <div className="flex-1 overflow-y-auto space-y-2">
-            {filteredClients.length === 0 ? (
-              <p className="text-sm text-zinc-500 px-2 italic text-center mt-4">Cap atleta trobat.</p>
-            ) : (
-              filteredClients.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => handleSelectClient(c)}
-                  className={`w-full text-left px-4 py-3 rounded-xl flex flex-col transition-all border ${selectedClientId === c.id ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-white border-zinc-100 hover:border-orange-300'}`}
+    <div className="min-h-full bg-zinc-100 font-sans text-zinc-900 flex flex-col relative">
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto">
+         <div className="max-w-5xl mx-auto space-y-6 pb-24">
+            
+            {/* TOP BAR ATLETES (Sense barra lateral) */}
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-zinc-200 flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1">
+                <div className="relative flex-1 md:max-w-sm">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Cerca un atleta per nom..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all"
+                  />
+                </div>
+                <select 
+                  value={selectedClientId || ''} 
+                  onChange={(e) => {
+                    const client = clients.find(c => c.id === e.target.value);
+                    if (client) handleSelectClient(client);
+                  }}
+                  className="flex-1 p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-medium text-sm md:min-w-[250px] cursor-pointer"
                 >
-                  <span className={`font-bold ${selectedClientId === c.id ? 'text-orange-900' : 'text-zinc-800'}`}>{c.name}</span>
-                  {c.email && <span className="text-xs text-zinc-500">{c.email}</span>}
-                </button>
-              ))
-            )}
-         </div>
-      </div>
+                  <option value="" disabled>-- Tria un atleta de la llista --</option>
+                  {filteredClients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <button onClick={handleAddNewClient} className="w-full md:w-auto flex items-center justify-center gap-2 bg-zinc-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-orange-500 transition-colors shadow-sm shrink-0">
+                <UserPlus size={18} /> Nou Atleta
+              </button>
+            </div>
 
-      <div className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-56px)]">
-         {editingClient ? (
-           <div className="max-w-4xl mx-auto space-y-6 pb-20">
-              
-              {/* HEADER PERFIL */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-200">
-                <div className="flex justify-between items-start mb-6 border-b border-zinc-100 pb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">
-                      <Users size={32} />
+            {editingClient ? (
+              <div className="space-y-6">
+                {/* HEADER PERFIL AMB PESTANYES */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-200">
+                  <div className="flex justify-between items-start mb-6 border-b border-zinc-100 pb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">
+                        <Users size={32} />
+                      </div>
+                      <div>
+                        <input type="text" value={editingClient.name} onChange={(e) => setEditingClient({...editingClient, name: e.target.value})} className="text-3xl font-black text-zinc-900 bg-transparent border-b-2 border-transparent focus:border-orange-500 outline-none w-full" placeholder="Nom de l'atleta" />
+                        <p className="text-sm text-zinc-500 mt-1">Perfil de rendiment i entrenament</p>
+                      </div>
+                    </div>
+                    <button onClick={handleDelete} className="text-red-400 hover:text-red-600 p-2 bg-red-50 rounded-lg transition-colors"><Trash2 size={20} /></button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correu Electrònic</label>
+                      <input type="email" value={editingClient.email} onChange={(e) => setEditingClient({...editingClient, email: e.target.value})} className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-lg outline-none focus:border-orange-500" placeholder="atleta@email.com" />
                     </div>
                     <div>
-                      <input type="text" value={editingClient.name} onChange={(e) => setEditingClient({...editingClient, name: e.target.value})} className="text-3xl font-black text-zinc-900 bg-transparent border-b-2 border-transparent focus:border-orange-500 outline-none w-full" placeholder="Nom de l'atleta" />
-                      <p className="text-sm text-zinc-500 mt-1">Perfil de rendiment i entrenament</p>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Telèfon (Opcional)</label>
+                      <input type="tel" value={editingClient.phone || ''} onChange={(e) => setEditingClient({...editingClient, phone: e.target.value})} className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-lg outline-none focus:border-orange-500" placeholder="+34 600 000 000" />
                     </div>
                   </div>
-                  <button onClick={handleDelete} className="text-red-400 hover:text-red-600 p-2"><Trash2 size={20} /></button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correu Electrònic</label>
-                    <input type="email" value={editingClient.email} onChange={(e) => setEditingClient({...editingClient, email: e.target.value})} className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-lg outline-none focus:border-orange-500" placeholder="atleta@email.com" />
+
+                  {/* TABS DE NAVEGACIÓ EN FORMAT BOTONS GRANS */}
+                  <div className="flex flex-col sm:flex-row gap-3 border-t border-zinc-100 pt-6">
+                    <button 
+                      onClick={() => setClientTab('general')}
+                      className={`flex-1 py-3 px-4 font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-2 ${clientTab === 'general' ? 'bg-orange-500 text-white shadow-md' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800'}`}
+                    >
+                      <Trophy size={18} /> Rendiment i Sessions
+                    </button>
+                    <button 
+                      onClick={() => setClientTab('biomechanics')}
+                      className={`flex-1 py-3 px-4 font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-2 ${clientTab === 'biomechanics' ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                    >
+                      <Zap size={18} /> Motor Analític Biomecànic
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Telèfon (Opcional)</label>
-                    <input type="tel" value={editingClient.phone || ''} onChange={(e) => setEditingClient({...editingClient, phone: e.target.value})} className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-lg outline-none focus:border-orange-500" placeholder="+34 600 000 000" />
-                  </div>
                 </div>
-              </div>
 
-              {/* MARQUES PERSONALS (AMB HISTORIAL) */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-200">
-                <h3 className="text-lg font-bold text-zinc-800 mb-6 flex items-center gap-2"><Trophy className="text-yellow-500" /> Marques Personals (PRs / Benchmarks)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {allPRs.map(pr => {
-                    const history = normalizePRHistory(editingClient.prs[pr]);
-                    const latestRecord = history.length > 0 ? history[history.length - 1] : null;
-                    const inputData = prInputs[pr] || { date: todayString, value: '' };
-                    
-                    // Comprovar si el test està fora de termini o pendent
-                    const reminderDate = editingClient.prReminders?.[pr];
-                    let isDue = false;
-                    
-                    if (reminderDate && reminderDate <= getLocalISOString(new Date())) {
-                      isDue = true;
-                      // Si ja hi ha un test passat a o després de la data del recordatori, ho donem per validat (deixa de fer pampallugues)
-                      if (latestRecord && latestRecord.date >= reminderDate) {
-                        isDue = false;
-                      }
-                    }
+                {/* CONTINGUT PESTANYA: GENERAL */}
+                {clientTab === 'general' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-200">
+                      <h3 className="text-lg font-bold text-zinc-800 mb-6 flex items-center gap-2"><Trophy className="text-yellow-500" /> Marques Personals (PRs / Benchmarks)</h3>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {allPRs.map(pr => {
+                          const history = normalizePRHistory(editingClient.prs[pr]);
+                          const latestRecord = history.length > 0 ? history[history.length - 1] : null;
+                          const inputData = prInputs[pr] || { date: todayString, value: '' };
+                          
+                          const reminderDate = editingClient.prReminders?.[pr];
+                          let isDue = false;
+                          
+                          if (reminderDate && reminderDate <= getLocalISOString(new Date())) {
+                            isDue = true;
+                            if (latestRecord && latestRecord.date >= reminderDate) {
+                              isDue = false;
+                            }
+                          }
 
-                    return (
-                      <div key={pr} className={`bg-zinc-50 p-4 rounded-xl border flex flex-col transition-colors shadow-sm hover:shadow ${isDue ? 'border-red-300 focus-within:border-red-500' : 'border-zinc-200 focus-within:border-orange-400'}`}>
-                        <label className={`text-xs font-bold mb-4 truncate border-b pb-2 flex justify-between items-center ${isDue ? 'text-red-600 border-red-200' : 'text-zinc-700 border-zinc-200'}`}>
-                          {pr}
-                          {isDue && <Bell size={14} className="text-red-500 animate-pulse" />}
-                        </label>
-                        
-                        {/* Darrer Registre Destacat */}
-                        <div className="flex items-end justify-between mb-4">
-                           <div>
-                             <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider block mb-1">Darrer Registre</span>
-                             <span className="text-3xl font-black text-zinc-900 leading-none">{latestRecord ? latestRecord.value : '--'}</span>
-                           </div>
-                           {history.length > 1 && (
-                             <span className="text-xs font-bold text-zinc-400 bg-zinc-200 px-2 py-1 rounded">
-                                {history.length} regs.
-                             </span>
-                           )}
-                        </div>
+                          return (
+                            <div key={pr} className={`bg-zinc-50 p-4 rounded-xl border flex flex-col transition-colors shadow-sm hover:shadow ${isDue ? 'border-red-300 focus-within:border-red-500' : 'border-zinc-200 focus-within:border-orange-400'}`}>
+                              <label className={`text-xs font-bold mb-4 truncate border-b pb-2 flex justify-between items-center ${isDue ? 'text-red-600 border-red-200' : 'text-zinc-700 border-zinc-200'}`}>
+                                {pr}
+                                {isDue && <Bell size={14} className="text-red-500 animate-pulse" />}
+                              </label>
+                              
+                              <div className="flex items-end justify-between mb-4">
+                                 <div>
+                                   <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider block mb-1">Darrer Registre</span>
+                                   <span className="text-3xl font-black text-zinc-900 leading-none">{latestRecord ? latestRecord.value : '--'}</span>
+                                 </div>
+                                 {history.length > 1 && (
+                                   <span className="text-xs font-bold text-zinc-400 bg-zinc-200 px-2 py-1 rounded">
+                                      {history.length} regs.
+                                   </span>
+                                 )}
+                              </div>
 
-                        {/* Formulari d'Ingrés de Dades - ARA RESPONSIVE */}
-                        <div className="flex gap-2 mb-4 items-center">
-                          <input 
-                            type="date" 
-                            value={inputData.date} 
-                            onChange={(e) => updatePrInput(pr, 'date', e.target.value)} 
-                            className="w-[100px] shrink-0 p-2 bg-white border border-zinc-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-orange-500 transition-shadow" 
-                          />
-                          <input 
-                            type="text" 
-                            value={inputData.value} 
-                            onChange={(e) => updatePrInput(pr, 'value', e.target.value)} 
-                            placeholder="Nova marca..." 
-                            className="min-w-0 flex-1 p-2 bg-white border border-zinc-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-orange-500 transition-shadow" 
-                          />
-                          <button 
-                            onClick={() => handleAddPRRecord(pr)} 
-                            className="shrink-0 bg-zinc-900 text-white w-9 h-9 rounded-lg hover:bg-orange-500 transition-colors flex items-center justify-center"
-                            title="Guardar aquest registre a l'historial"
-                          >
-                            <Plus size={16}/>
-                          </button>
-                        </div>
+                              <div className="flex gap-2 mb-4 items-center">
+                                <input 
+                                  type="date" 
+                                  value={inputData.date} 
+                                  onChange={(e) => updatePrInput(pr, 'date', e.target.value)} 
+                                  className="w-[100px] shrink-0 p-2 bg-white border border-zinc-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-orange-500 transition-shadow" 
+                                />
+                                <input 
+                                  type="text" 
+                                  value={inputData.value} 
+                                  onChange={(e) => updatePrInput(pr, 'value', e.target.value)} 
+                                  placeholder="Nova marca..." 
+                                  className="min-w-0 flex-1 p-2 bg-white border border-zinc-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-orange-500 transition-shadow" 
+                                />
+                                <button 
+                                  onClick={() => handleAddPRRecord(pr)} 
+                                  className="shrink-0 bg-zinc-900 text-white w-9 h-9 rounded-lg hover:bg-orange-500 transition-colors flex items-center justify-center"
+                                  title="Guardar aquest registre a l'historial"
+                                >
+                                  <Plus size={16}/>
+                                </button>
+                              </div>
 
-                        {/* Llista d'Historial */}
-                        {history.length > 0 && (
-                          <div className="space-y-1.5 mb-4 max-h-32 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                             {[...history].reverse().map(record => (
-                                <div key={record.id} className="flex justify-between items-center text-xs bg-white p-2.5 rounded border border-zinc-100 shadow-sm hover:border-orange-200 transition-colors">
-                                   <span className="text-zinc-500 font-medium">{record.date}</span>
-                                   <span className="font-bold text-zinc-800 text-sm">{record.value}</span>
-                                   <button onClick={() => handleDeletePRRecord(pr, record.id)} className="text-zinc-300 hover:text-red-500 p-1"><Trash2 size={14}/></button>
+                              {history.length > 0 && (
+                                <div className="space-y-1.5 mb-4 max-h-32 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+                                   {[...history].reverse().map(record => (
+                                      <div key={record.id} className="flex justify-between items-center text-xs bg-white p-2.5 rounded border border-zinc-100 shadow-sm hover:border-orange-200 transition-colors">
+                                         <span className="text-zinc-500 font-medium">{record.date}</span>
+                                         <span className="font-bold text-zinc-800 text-sm">{record.value}</span>
+                                         <button onClick={() => handleDeletePRRecord(pr, record.id)} className="text-zinc-300 hover:text-red-500 p-1"><Trash2 size={14}/></button>
+                                      </div>
+                                   ))}
                                 </div>
-                             ))}
+                              )}
+
+                              <div className="mt-auto pt-3 border-t border-zinc-200/80">
+                                <label className={`text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${isDue ? 'text-red-500' : 'text-zinc-400'}`}>
+                                  Proper Test (Programar)
+                                </label>
+                                <input 
+                                  type="date" 
+                                  value={reminderDate || ''} 
+                                  onChange={(e) => updatePRReminder(pr, e.target.value)} 
+                                  className={`w-full p-2 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-xs font-medium transition-all ${isDue ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-zinc-100/50 border border-zinc-200 text-zinc-600'}`} 
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 flex flex-col focus-within:border-orange-400 transition-colors justify-end gap-2 shadow-sm">
+                          <label className="text-xs font-bold text-orange-800">Nova Categoria de PR</label>
+                          <div className="flex gap-2 items-center">
+                              <input 
+                                type="text" 
+                                value={newPRName} 
+                                onChange={(e) => setNewPRName(e.target.value)} 
+                                placeholder="Ex: 5K Row" 
+                                className="min-w-0 flex-1 p-2 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-sm" 
+                              />
+                              <button onClick={() => { handleAddCustomPR(newPRName); setNewPRName(''); }} className="shrink-0 bg-orange-500 text-white w-9 h-9 rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center">
+                                <Plus size={16}/>
+                              </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-zinc-900 p-6 rounded-2xl shadow-lg border border-zinc-800 text-white">
+                      <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
+                        <h3 className="text-lg font-bold flex items-center gap-2"><Activity className="text-orange-500" /> Dashboard de Progrés</h3>
+                        <button onClick={() => alert("Properament: Generador d'imatge PDF/PNG per enviar a l'atleta per WhatsApp!")} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                          <Share2 size={16} /> Compartir Informe
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
+                          <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Sessions Totals</div>
+                          <div className="text-3xl font-black text-white">{clientWorkouts.length}</div>
+                          <div className="text-xs text-zinc-500 mt-2">Dins de la plataforma</div>
+                        </div>
+                        <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
+                          <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Estat de l'Atleta</div>
+                          <div className="text-3xl font-black text-orange-500 flex items-center gap-2"><Flame size={24}/> Actiu</div>
+                          <div className="text-xs text-zinc-500 mt-2">Bona constància d'entrenament</div>
+                        </div>
+                        <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
+                          <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Rendiment (PRs)</div>
+                          <div className="text-3xl font-black text-green-400 flex items-center gap-2"><TrendingUp size={24}/> ↑</div>
+                          <div className="text-xs text-zinc-500 mt-2">Dades recollides i millorant</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-8 border-t border-zinc-800 pt-6">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <BarChart3 size={18} className="text-orange-500"/> Evolució Últim Test
+                        </h4>
+                        
+                        {prEvolutions.length === 0 ? (
+                          <p className="text-sm text-zinc-500 italic bg-zinc-800/30 p-4 rounded-xl border border-zinc-800 border-dashed text-center">
+                            Afegeix almenys dos registres d'historial en una mateixa marca per generar la gràfica d'evolució automàticament.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {prEvolutions.map((evo, i) => {
+                              const maxVal = Math.max(evo.prev, evo.curr);
+                              const prevWidth = (evo.prev / maxVal) * 100;
+                              const currWidth = (evo.curr / maxVal) * 100;
+                              const isPositive = evo.curr >= evo.prev;
+
+                              return (
+                                <div key={i} className="bg-zinc-800/40 p-4 rounded-xl border border-zinc-700/50 hover:border-orange-500/30 transition-colors">
+                                  <div className="flex justify-between items-end mb-4">
+                                    <span className="font-bold text-sm text-zinc-200">{evo.name}</span>
+                                    <span className={`text-xs font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                      {isPositive ? '+' : ''}{evo.improvement}%
+                                    </span>
+                                  </div>
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-[10px] font-bold text-zinc-500 w-14 text-right tracking-wider">ANTERIOR</span>
+                                      <div className="flex-1 h-3 bg-zinc-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-zinc-500 rounded-full transition-all duration-1000" style={{ width: `${prevWidth}%` }}></div>
+                                      </div>
+                                      <span className="text-xs font-bold text-zinc-400 w-12 text-right">{evo.prevLabel}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-[10px] font-bold text-orange-500 w-14 text-right tracking-wider">ACTUAL</span>
+                                      <div className="flex-1 h-3 bg-zinc-800 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all duration-1000 ${isPositive ? 'bg-orange-500' : 'bg-red-500'}`} style={{ width: `${currWidth}%` }}></div>
+                                      </div>
+                                      <span className="text-xs font-bold text-white w-12 text-right">{evo.currLabel}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
+                      </div>
+                    </div>
 
-                        {/* Recordatori de Test */}
-                        <div className="mt-auto pt-3 border-t border-zinc-200/80">
-                          <label className={`text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${isDue ? 'text-red-500' : 'text-zinc-400'}`}>
-                            Proper Test (Programar)
-                          </label>
-                          <input 
-                            type="date" 
-                            value={reminderDate || ''} 
-                            onChange={(e) => updatePRReminder(pr, e.target.value)} 
-                            className={`w-full p-2 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-xs font-medium transition-all ${isDue ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-zinc-100/50 border border-zinc-200 text-zinc-600'}`} 
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-200">
+                      <h3 className="text-lg font-bold text-zinc-800 mb-6 flex items-center gap-2"><CalendarDays className="text-orange-500" /> Entrenaments Assignats</h3>
+                      
+                      <div className="flex gap-3 mb-6">
+                        <select value={workoutToAssign} onChange={(e) => setWorkoutToAssign(e.target.value)} className="flex-1 p-3 bg-zinc-50 border border-zinc-300 rounded-lg outline-none focus:border-orange-500 font-medium">
+                          <option value="">Selecciona un entrenament del calendari...</option>
+                          {sortedWorkouts.filter(w => w.clientId !== editingClient.id).map(w => (
+                            <option key={w.id} value={w.id}>{w.date} - {w.sessionName}</option>
+                          ))}
+                        </select>
+                        <button onClick={handleAssignWorkout} className="bg-zinc-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-orange-500 transition-colors">Assignar</button>
+                      </div>
+
+                      <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+                        {clientWorkouts.length === 0 ? (
+                          <p className="text-sm text-zinc-500 italic text-center py-6 bg-zinc-50 rounded-xl border border-zinc-200 border-dashed">No hi ha cap entrenament assignat a aquest atleta.</p>
+                        ) : (
+                          clientWorkouts.map(w => (
+                            <div key={w.id} className="flex justify-between items-center bg-orange-50/50 p-4 rounded-xl border border-orange-100">
+                              <div>
+                                <span className="text-xs font-bold bg-orange-200 text-orange-800 px-2 py-1 rounded mr-3">{w.date}</span>
+                                <span className="font-bold text-zinc-800">{w.sessionName}</span>
+                              </div>
+                              <button onClick={() => handleRemoveAssignedWorkout(w.id)} className="text-zinc-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm"><X size={16}/></button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* CONTINGUT PESTANYA: BIOMECÀNICA */}
+                {clientTab === 'biomechanics' && (
+                  <div className="bg-white p-6 md:p-10 rounded-2xl shadow-lg border border-blue-200 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+                    
+                    <div className="flex flex-col mb-8 border-b border-zinc-100 pb-6">
+                      <h3 className="text-2xl font-black text-zinc-900 flex items-center gap-3"><Zap className="text-blue-600 w-8 h-8" /> Motor Analític Biomecànic</h3>
+                      <p className="text-zinc-500 mt-2 text-base">Introdueix les dades del testatge de l'esportista per creuar-les amb la Base de Dades Normativa i ubicar el seu perfil de rendiment exacte al Speed-Force Quadrant.</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-5 mb-8 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
+                      <div>
+                        <label className="block text-xs font-bold text-blue-900 uppercase mb-2">Edat</label>
+                        <input type="number" value={bioInputs.age} onChange={(e) => handleBioInputChange('age', e.target.value)} className="w-full p-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-sm transition-all" placeholder="Ex: 24" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-900 uppercase mb-2">Pes Corporal (kg)</label>
+                        <input type="number" value={bioInputs.weight} onChange={(e) => handleBioInputChange('weight', e.target.value)} className="w-full p-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-sm transition-all" placeholder="Ex: 80" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-900 uppercase mb-2">Esport</label>
+                        <select value={bioInputs.sport} onChange={(e) => handleBioInputChange('sport', e.target.value)} className="w-full p-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-sm transition-all appearance-none cursor-pointer">
+                          <option value="General">General</option>
+                          <option value="Futbol">Futbol</option>
+                          <option value="Bàsquet">Bàsquet</option>
+                          <option value="CrossFit">CrossFit</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-900 uppercase mb-2">Posició / Rol</label>
+                        <input type="text" value={bioInputs.position} onChange={(e) => handleBioInputChange('position', e.target.value)} className="w-full p-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-sm transition-all" placeholder="Ex: Davanter" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-900 uppercase mb-2">CMJ (cm)</label>
+                        <input type="number" value={bioInputs.cmj} onChange={(e) => handleBioInputChange('cmj', e.target.value)} className="w-full p-3 bg-white border border-blue-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 text-blue-800 font-black text-lg shadow-sm transition-all" placeholder="Ex: 42" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-900 uppercase mb-2">ISO Belt Squat (N)</label>
+                        <input type="number" value={bioInputs.iso} onChange={(e) => handleBioInputChange('iso', e.target.value)} className="w-full p-3 bg-white border border-blue-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-600 text-blue-800 font-black text-lg shadow-sm transition-all" placeholder="Ex: 2100" />
+                      </div>
+                    </div>
+
+                    <button onClick={calculateBiomechanics} className="w-full bg-blue-600 text-white font-black uppercase tracking-widest py-4 rounded-xl hover:bg-blue-700 transition-all hover:shadow-[0_10px_20px_rgba(37,99,235,0.3)] hover:-translate-y-1 mb-8 active:translate-y-0">
+                      Generar Avaluació Biomecànica
+                    </button>
+
+                    {bioResult && (
+                      <div className="bg-[#111111] rounded-3xl p-8 text-white shadow-2xl animate-in fade-in zoom-in-95 duration-400 border border-zinc-800">
+                        
+                        <h4 className="text-sm font-bold text-blue-500 uppercase tracking-widest mb-6 flex items-center gap-2"><Target size={16}/> Diagnòstic Directe</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-center bg-zinc-900/80 p-4 rounded-xl border border-zinc-800">
+                              <span className="text-zinc-400 font-medium">Força Relativa ISO</span>
+                              <span className="font-bold text-2xl text-white">{bioResult.forceRel.toFixed(2)} <span className="text-sm text-zinc-500 font-normal tracking-wide">N/kg</span></span>
+                            </div>
+                            <div className="flex justify-between items-center bg-zinc-900/80 p-4 rounded-xl border border-zinc-800">
+                              <span className="text-zinc-400 font-medium">Z-Score CMJ</span>
+                              <span className={`font-black text-2xl ${bioResult.zCmj > 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'text-rose-400 drop-shadow-[0_0_8px_rgba(251,113,133,0.3)]'}`}>{bioResult.zCmj > 0 ? '+' : ''}{bioResult.zCmj.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center bg-zinc-900/80 p-4 rounded-xl border border-zinc-800">
+                              <span className="text-zinc-400 font-medium">Z-Score ISO</span>
+                              <span className={`font-black text-2xl ${bioResult.zIso > 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'text-rose-400 drop-shadow-[0_0_8px_rgba(251,113,133,0.3)]'}`}>{bioResult.zIso > 0 ? '+' : ''}{bioResult.zIso.toFixed(2)}</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 p-6 rounded-2xl border border-zinc-700 flex flex-col justify-center relative overflow-hidden shadow-lg">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[50px] rounded-full pointer-events-none"></div>
+                            <span className="text-xs text-blue-400 font-bold uppercase mb-2 tracking-widest">Perfil Resultant</span>
+                            <span className="text-4xl font-black text-white mb-4 tracking-tight drop-shadow-md">{bioResult.quadrant}</span>
+                            <p className="text-base text-zinc-300 leading-relaxed">{bioResult.explanation}</p>
+                          </div>
+                        </div>
+
+                        <h4 className="text-sm font-bold text-blue-500 uppercase tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Matriu Speed-Force 2x2</h4>
+                        <div className="grid grid-cols-2 gap-3 w-full max-w-lg mx-auto mb-12 relative bg-zinc-900 p-8 rounded-3xl border border-zinc-800">
+                          <div className="absolute -left-4 top-1/2 -translate-y-1/2 -rotate-90 text-xs font-black text-zinc-600 tracking-[0.3em]">VELOCITAT (CMJ)</div>
+                          <div className="absolute left-1/2 -bottom-2 -translate-x-1/2 text-xs font-black text-zinc-600 tracking-[0.3em]">FORÇA (ISO)</div>
+                          
+                          {/* Top Left: FLASH */}
+                          <div className={`p-6 border rounded-tl-3xl flex flex-col items-center justify-center text-center transition-all duration-500 ${bioResult.quadrant === 'FLASH' ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-400 shadow-[0_0_30px_rgba(59,130,246,0.5)] z-10 scale-[1.05]' : 'bg-zinc-950 border-zinc-800 text-zinc-500 opacity-60'}`}>
+                            <Zap size={28} className={bioResult.quadrant === 'FLASH' ? 'text-white mb-2' : 'text-zinc-700 mb-2'} />
+                            <span className="font-black text-lg tracking-wide">FLASH</span>
+                          </div>
+                          
+                          {/* Top Right: SUPERMAN */}
+                          <div className={`p-6 border rounded-tr-3xl flex flex-col items-center justify-center text-center transition-all duration-500 ${bioResult.quadrant === 'SUPERMAN' ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-400 shadow-[0_0_30px_rgba(59,130,246,0.5)] z-10 scale-[1.05]' : 'bg-zinc-950 border-zinc-800 text-zinc-500 opacity-60'}`}>
+                            <TrendingUp size={28} className={bioResult.quadrant === 'SUPERMAN' ? 'text-white mb-2' : 'text-zinc-700 mb-2'} />
+                            <span className="font-black text-lg tracking-wide">SUPERMAN</span>
+                          </div>
+
+                          {/* Bottom Left: DEFICIENT */}
+                          <div className={`p-6 border rounded-bl-3xl flex flex-col items-center justify-center text-center transition-all duration-500 ${bioResult.quadrant === 'NORMAL / DEFICIENT' ? 'bg-gradient-to-br from-rose-500 to-rose-700 text-white border-rose-400 shadow-[0_0_30px_rgba(244,63,94,0.5)] z-10 scale-[1.05]' : 'bg-zinc-950 border-zinc-800 text-zinc-500 opacity-60'}`}>
+                            <Activity size={28} className={bioResult.quadrant === 'NORMAL / DEFICIENT' ? 'text-white mb-2' : 'text-zinc-700 mb-2'} />
+                            <span className="font-black text-lg tracking-wide">DEFICIENT</span>
+                          </div>
+
+                          {/* Bottom Right: HULK */}
+                          <div className={`p-6 border rounded-br-3xl flex flex-col items-center justify-center text-center transition-all duration-500 ${bioResult.quadrant === 'HULK' ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white border-blue-400 shadow-[0_0_30px_rgba(59,130,246,0.5)] z-10 scale-[1.05]' : 'bg-zinc-950 border-zinc-800 text-zinc-500 opacity-60'}`}>
+                            <Trophy size={28} className={bioResult.quadrant === 'HULK' ? 'text-white mb-2' : 'text-zinc-700 mb-2'} />
+                            <span className="font-black text-lg tracking-wide">HULK</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800">
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2"><FileSpreadsheet size={16}/> Cadena CSV d'Exportació</span>
+                            <button 
+                              onClick={() => { navigator.clipboard.writeText(bioResult.csv); alert("CSV copiat al porta-retalls!"); }}
+                              className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 font-bold shadow-sm"
+                            >
+                              <Copy size={14}/> COPIAR
+                            </button>
+                          </div>
+                          <textarea 
+                            readOnly 
+                            value={bioResult.csv} 
+                            className="w-full bg-black text-emerald-400 font-mono text-sm p-4 rounded-xl border border-zinc-800 h-20 outline-none resize-none focus:border-blue-500 transition-colors"
                           />
                         </div>
                       </div>
-                    );
-                  })}
-
-                  {/* NOVA CATEGORIA DE PR */}
-                  <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 flex flex-col focus-within:border-orange-400 transition-colors justify-end gap-2 shadow-sm">
-                    <label className="text-xs font-bold text-orange-800">Nova Categoria de PR</label>
-                    <div className="flex gap-2 items-center">
-                        <input 
-                          type="text" 
-                          value={newPRName} 
-                          onChange={(e) => setNewPRName(e.target.value)} 
-                          placeholder="Ex: 5K Row" 
-                          className="min-w-0 flex-1 p-2 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-sm" 
-                        />
-                        <button onClick={() => { handleAddCustomPR(newPRName); setNewPRName(''); }} className="shrink-0 bg-orange-500 text-white w-9 h-9 rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center">
-                          <Plus size={16}/>
-                        </button>
-                    </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
-
-              {/* DASHBOARD DE PROGRÉS I RETENCIÓ */}
-              <div className="bg-zinc-900 p-6 rounded-2xl shadow-lg border border-zinc-800 text-white">
-                <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
-                  <h3 className="text-lg font-bold flex items-center gap-2"><Activity className="text-orange-500" /> Dashboard de Progrés</h3>
-                  <button onClick={() => alert("Properament: Generador d'imatge PDF/PNG per enviar a l'atleta per WhatsApp!")} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-                    <Share2 size={16} /> Compartir Informe
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
-                    <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Sessions Totals</div>
-                    <div className="text-3xl font-black text-white">{clientWorkouts.length}</div>
-                    <div className="text-xs text-zinc-500 mt-2">Dins de la plataforma</div>
-                  </div>
-                  <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
-                    <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Estat de l'Atleta</div>
-                    <div className="text-3xl font-black text-orange-500 flex items-center gap-2"><Flame size={24}/> Actiu</div>
-                    <div className="text-xs text-zinc-500 mt-2">Bona constància d'entrenament</div>
-                  </div>
-                  <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
-                    <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Rendiment (PRs)</div>
-                    <div className="text-3xl font-black text-green-400 flex items-center gap-2"><TrendingUp size={24}/> ↑</div>
-                    <div className="text-xs text-zinc-500 mt-2">Dades recollides i millorant</div>
-                  </div>
-                </div>
-
-                {/* GRÀFICA D'EVOLUCIÓ BARRAS HORITZONTALS (LLEGEIX DE L'HISTORIAL) */}
-                <div className="mt-8 border-t border-zinc-800 pt-6">
-                  <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <BarChart3 size={18} className="text-orange-500"/> Evolució Últim Test
-                  </h4>
-                  
-                  {prEvolutions.length === 0 ? (
-                    <p className="text-sm text-zinc-500 italic bg-zinc-800/30 p-4 rounded-xl border border-zinc-800 border-dashed text-center">
-                      Afegeix almenys dos registres d'historial en una mateixa marca per generar la gràfica d'evolució automàticament.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {prEvolutions.map((evo, i) => {
-                        const maxVal = Math.max(evo.prev, evo.curr);
-                        const prevWidth = (evo.prev / maxVal) * 100;
-                        const currWidth = (evo.curr / maxVal) * 100;
-                        const isPositive = evo.curr >= evo.prev;
-
-                        return (
-                          <div key={i} className="bg-zinc-800/40 p-4 rounded-xl border border-zinc-700/50 hover:border-orange-500/30 transition-colors">
-                            <div className="flex justify-between items-end mb-4">
-                              <span className="font-bold text-sm text-zinc-200">{evo.name}</span>
-                              <span className={`text-xs font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                {isPositive ? '+' : ''}{evo.improvement}%
-                              </span>
-                            </div>
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-bold text-zinc-500 w-14 text-right tracking-wider">ANTERIOR</span>
-                                <div className="flex-1 h-3 bg-zinc-800 rounded-full overflow-hidden">
-                                  <div className="h-full bg-zinc-500 rounded-full transition-all duration-1000" style={{ width: `${prevWidth}%` }}></div>
-                                </div>
-                                <span className="text-xs font-bold text-zinc-400 w-12 text-right">{evo.prevLabel}</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-bold text-orange-500 w-14 text-right tracking-wider">ACTUAL</span>
-                                <div className="flex-1 h-3 bg-zinc-800 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all duration-1000 ${isPositive ? 'bg-orange-500' : 'bg-red-500'}`} style={{ width: `${currWidth}%` }}></div>
-                                </div>
-                                <span className="text-xs font-bold text-white w-12 text-right">{evo.currLabel}</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+            ) : (
+              <div className="h-[60vh] flex flex-col items-center justify-center text-zinc-400 bg-white rounded-2xl border border-zinc-200 shadow-sm">
+                <Users size={64} className="mb-4 opacity-20" />
+                <p className="text-xl font-medium">Tria un atleta per veure el seu perfil o crea'n un de nou.</p>
               </div>
-
-              {/* ENTRENAMENTS ASSIGNATS */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-200">
-                <h3 className="text-lg font-bold text-zinc-800 mb-6 flex items-center gap-2"><CalendarDays className="text-orange-500" /> Entrenaments Assignats</h3>
-                
-                <div className="flex gap-3 mb-6">
-                  <select value={workoutToAssign} onChange={(e) => setWorkoutToAssign(e.target.value)} className="flex-1 p-3 bg-zinc-50 border border-zinc-300 rounded-lg outline-none focus:border-orange-500 font-medium">
-                    <option value="">Selecciona un entrenament del calendari...</option>
-                    {sortedWorkouts.filter(w => w.clientId !== editingClient.id).map(w => (
-                      <option key={w.id} value={w.id}>{w.date} - {w.sessionName}</option>
-                    ))}
-                  </select>
-                  <button onClick={handleAssignWorkout} className="bg-zinc-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-orange-500 transition-colors">Assignar</button>
-                </div>
-
-                <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
-                  {clientWorkouts.length === 0 ? (
-                    <p className="text-sm text-zinc-500 italic text-center py-6 bg-zinc-50 rounded-xl border border-zinc-200 border-dashed">No hi ha cap entrenament assignat a aquest atleta.</p>
-                  ) : (
-                    clientWorkouts.map(w => (
-                      <div key={w.id} className="flex justify-between items-center bg-orange-50/50 p-4 rounded-xl border border-orange-100">
-                        <div>
-                          <span className="text-xs font-bold bg-orange-200 text-orange-800 px-2 py-1 rounded mr-3">{w.date}</span>
-                          <span className="font-bold text-zinc-800">{w.sessionName}</span>
-                        </div>
-                        <button onClick={() => handleRemoveAssignedWorkout(w.id)} className="text-zinc-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm"><X size={16}/></button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* BOTÓ DE GUARDAR FLOTANT */}
-              <div className="fixed bottom-0 right-0 w-full md:w-[calc(100%-20rem)] p-4 bg-white/90 backdrop-blur-md border-t border-zinc-200 flex justify-center z-10">
-                 <button onClick={handleSave} className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-10 py-3 rounded-full font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                   <Save size={20} /> Guardar Perfil de l'Atleta
-                 </button>
-              </div>
-           </div>
-         ) : (
-           <div className="h-full flex flex-col items-center justify-center text-zinc-400">
-             <Users size={64} className="mb-4 opacity-20" />
-             <p className="text-xl font-medium">Selecciona un client de la llista o crea'n un de nou.</p>
+            )}
+         </div>
+         
+         {/* BOTÓ DE GUARDAR FLOTANT */}
+         {editingClient && (
+           <div className="fixed bottom-0 left-0 w-full p-4 bg-white/90 backdrop-blur-md border-t border-zinc-200 flex justify-center z-10">
+              <button onClick={handleSave} className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-10 py-3 rounded-full font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                <Save size={20} /> Guardar Perfil de l'Atleta
+              </button>
            </div>
          )}
       </div>
@@ -749,21 +962,18 @@ export default function ModumCoachApp() {
   const [currentView, setCurrentView] = useState('calendar');
   const [workout, setWorkout] = useState({...emptyWorkoutTemplate, id: Date.now().toString()});
   
-  // Dades al núvol (Cloud State)
   const [savedWorkouts, setSavedWorkouts] = useState([]);
   const [exerciseLibrary, setExerciseLibrary] = useState([]);
-  const [clients, setClients] = useState([]); // Estat pels clients
-  const [customPRs, setCustomPRs] = useState([]); // Nou Estat pels PRs personalitzats
+  const [clients, setClients] = useState([]); 
+  const [customPRs, setCustomPRs] = useState([]);
 
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [calendarMode, setCalendarMode] = useState('month'); 
   
-  // Estats Exportació CSV
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportStart, setExportStart] = useState(todayString);
   const [exportEnd, setExportEnd] = useState(todayString);
 
-  // Estats Duplicar
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [dupFrequency, setDupFrequency] = useState(1);
   const [dupPeriod, setDupPeriod] = useState('days'); 
@@ -771,23 +981,17 @@ export default function ModumCoachApp() {
   const [dupEndDate, setDupEndDate] = useState(todayString);
   const [workoutToDuplicate, setWorkoutToDuplicate] = useState(null);
 
-  // Estats Esborrar
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [workoutToDelete, setWorkoutToDelete] = useState(null);
   const [deleteSeriesToo, setDeleteSeriesToo] = useState(false);
 
-  // Nou Estat: Pantalla TV (Llista d'entrenaments seleccionats, màxim 2)
   const [tvWorkouts, setTvWorkouts] = useState([]);
-
-  // Nou Estat: Cerca d'atletes al Creador
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [showClientSearch, setShowClientSearch] = useState(false);
 
-  // Estats per les Notificacions
   const [showNotifications, setShowNotifications] = useState(false);
   const [clientToOpen, setClientToOpen] = useState(null);
 
-  // --- FIREBASE AUTHENTICATION ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -796,7 +1000,6 @@ export default function ModumCoachApp() {
     return () => unsubscribe();
   }, []);
 
-  // --- FIREBASE FIRESTORE SYNC ---
   useEffect(() => {
     if (!user) return;
 
@@ -839,7 +1042,6 @@ export default function ModumCoachApp() {
 
   const handleLogout = () => signOut(auth);
 
-  // --- CLOUD CRUD OPERATIONS ---
   const saveWorkoutToDB = async () => {
     try {
       await setDoc(doc(db, 'workouts', workout.id), workout);
@@ -849,7 +1051,7 @@ export default function ModumCoachApp() {
       alert("Error guardant l'entrenament: " + e.message);
     }
   };
-
+  
   const saveExerciseToDB = async (newEx) => {
     await setDoc(doc(db, 'library', newEx.id), newEx);
   };
@@ -882,7 +1084,6 @@ export default function ModumCoachApp() {
     if(w) await setDoc(doc(db, 'workouts', w.id), { ...w, clientId: '' });
   };
 
-  // Lògica per afegir/treure entrenaments de la cua de la TV
   const toggleTVWorkout = (w) => {
     const isAlreadySelected = tvWorkouts.find(tvW => tvW.id === w.id);
     if (isAlreadySelected) {
@@ -896,12 +1097,9 @@ export default function ModumCoachApp() {
     }
   };
 
-  // --- GENERADOR DE NOTIFICACIONS ---
   const getDueReminders = () => {
     let due = [];
     const todayStr = getLocalISOString(new Date());
-    
-    // Per avisar fins a 7 dies abans
     const warningDateObj = new Date();
     warningDateObj.setDate(warningDateObj.getDate() + 7);
     const warningStr = getLocalISOString(warningDateObj);
@@ -910,12 +1108,8 @@ export default function ModumCoachApp() {
       if (client.prReminders) {
         Object.entries(client.prReminders).forEach(([pr, dateStr]) => {
           if (dateStr && dateStr <= warningStr) {
-            
-            // Comprovem si l'usuari JA HA PASSAT aquest test (o un de posterior) a l'historial
             const history = normalizePRHistory(client.prs?.[pr]);
             const latestRecord = history.length > 0 ? history[history.length - 1] : null;
-            
-            // Només mostrem la notificació si NO hi ha un registre, o si l'últim registre és anterior a la data programada
             if (!latestRecord || latestRecord.date < dateStr) {
               due.push({
                 clientId: client.id,
@@ -930,14 +1124,12 @@ export default function ModumCoachApp() {
         });
       }
     });
-    // Ordenem de més antic (més urgent) a més nou
     return due.sort((a, b) => a.date.localeCompare(b.date));
   };
   
   const notificationsList = getDueReminders();
 
-  // La resta de funcions crud...
-  const handleConfirmDuplicate = async () => { /* Igual que abans */ 
+  const handleConfirmDuplicate = async () => {
     if (!workoutToDuplicate) return;
     try {
       const start = new Date(dupStartDate);
@@ -983,7 +1175,7 @@ export default function ModumCoachApp() {
     } catch (e) { alert("Error esborrant: " + e.message); }
   };
 
-  const handleExportCSV = () => { /* Export CSV logic same as before */ 
+  const handleExportCSV = () => {
     const filteredWorkouts = savedWorkouts.filter(w => w.date >= exportStart && w.date <= exportEnd);
     if (filteredWorkouts.length === 0) { alert("No hi ha entrenaments guardats en aquest rang de dates."); return; }
     const escapeCsv = (str) => { if (str === null || str === undefined) return '""'; return '"' + String(str).replace(/"/g, '""') + '"'; };
@@ -1009,7 +1201,6 @@ export default function ModumCoachApp() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link); setShowExportModal(false);
   };
 
-  // --- GENERADOR DE PDF (Nou) ---
   const generateWorkoutPDF = (workoutData) => {
     const printWindow = window.open('', '_blank');
     const [y, m, d] = workoutData.date.split('-');
@@ -1052,7 +1243,6 @@ export default function ModumCoachApp() {
           </style>
         </head>
         <body class="bg-white p-8 max-w-4xl mx-auto">
-           <!-- Header -->
            <div class="flex justify-between items-center border-b-4 border-zinc-900 pb-6 mb-8">
              <div class="flex items-center gap-4">
                ${logoSVG}
@@ -1066,20 +1256,14 @@ export default function ModumCoachApp() {
                <div class="text-lg font-black text-zinc-800">${formattedDate}</div>
              </div>
            </div>
-
-           <!-- Títol de la Sessió -->
            <div class="mb-10 text-center bg-zinc-900 text-white py-6 rounded-2xl">
              <span class="inline-block bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3">${workoutData.tag || 'WOD'}</span>
              <h1 class="text-4xl font-black uppercase tracking-tight">${workoutData.sessionName}</h1>
              ${clientNameStr}
            </div>
-
-           <!-- Blocs -->
            ${buildBlockHtml('Escalfament', workoutData.blocks.warmup)}
            ${buildBlockHtml('WOD (Part Principal)', workoutData.blocks.wod)}
            ${buildBlockHtml('Complements', workoutData.blocks.accessories)}
-
-           <!-- Notes Inferiors -->
            ${workoutData.bottomNotes ? `
              <div class="mt-8 bg-orange-50 border border-orange-200 p-5 rounded-xl">
                <h4 class="text-sm font-bold text-orange-800 uppercase mb-2 flex items-center gap-2">
@@ -1089,8 +1273,6 @@ export default function ModumCoachApp() {
                <p class="text-zinc-700 font-medium">${workoutData.bottomNotes}</p>
              </div>
            ` : ''}
-
-           <!-- Footer -->
            <div class="mt-12 pt-6 border-t border-zinc-200 text-center text-zinc-400 text-xs font-medium">
              Generat automàticament des de la plataforma Modum Coach
            </div>
@@ -1100,16 +1282,11 @@ export default function ModumCoachApp() {
 
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    
-    // Deixem 1 segon de marge perquè Tailwind carregui els estils abans d'obrir el diàleg d'imprimir
-    setTimeout(() => {
-      printWindow.print();
-    }, 1000);
+    setTimeout(() => { printWindow.print(); }, 1000);
   };
 
-  // GESTIÓ ENTRENADOR (Inputs Locals)
   const handleWorkoutChange = (field, value) => setWorkout(prev => ({ ...prev, [field]: value }));
-  const addSubSection = (blockKey) => { const newSub = { id: Date.now().toString(), title: 'Nou Apartat', exercises: [] }; setWorkout(prev => ({ ...prev, blocks: { ...prev.blocks, [blockKey]: [...prev.blocks[blockKey], newSub] } })); };
+  const addSubSection = (blockKey) => { setWorkout(prev => ({ ...prev, blocks: { ...prev.blocks, [blockKey]: [...prev.blocks[blockKey], { id: Date.now().toString(), title: 'Nou Apartat', exercises: [] }] } })); };
   const updateSubSectionTitle = (blockKey, subId, newTitle) => { setWorkout(prev => ({ ...prev, blocks: { ...prev.blocks, [blockKey]: prev.blocks[blockKey].map(sub => sub.id === subId ? { ...sub, title: newTitle } : sub) } })); };
   const removeSubSection = (blockKey, subId) => { setWorkout(prev => ({ ...prev, blocks: { ...prev.blocks, [blockKey]: prev.blocks[blockKey].filter(sub => sub.id !== subId) } })); };
   const addExercise = (blockKey, subId) => { const newEx = { id: Date.now().toString(), exerciseName: '', sets: 1, reps: 10, unit: 'reps', notes: '' }; setWorkout(prev => ({ ...prev, blocks: { ...prev.blocks, [blockKey]: prev.blocks[blockKey].map(sub => sub.id === subId ? { ...sub, exercises: [...sub.exercises, newEx] } : sub) } })); };
@@ -1117,18 +1294,14 @@ export default function ModumCoachApp() {
   const removeExercise = (blockKey, subId, exId) => { setWorkout(prev => ({ ...prev, blocks: { ...prev.blocks, [blockKey]: prev.blocks[blockKey].map(sub => sub.id === subId ? { ...sub, exercises: sub.exercises.filter(ex => ex.id !== exId) } : sub) } })); };
   const createWorkoutForDate = (dateStr) => { setWorkout({ ...emptyWorkoutTemplate, id: Date.now().toString(), date: dateStr }); setCurrentView('coach'); };
 
-  // LÒGICA CALENDARI
   const getWorkoutsForDate = (dateStr) => savedWorkouts.filter(w => w.date === dateStr);
   const goToPrev = () => { const newDate = new Date(calendarDate); if (calendarMode === 'month') newDate.setMonth(newDate.getMonth() - 1); else if (calendarMode === 'week') newDate.setDate(newDate.getDate() - 7); else newDate.setDate(newDate.getDate() - 1); setCalendarDate(newDate); };
   const goToNext = () => { const newDate = new Date(calendarDate); if (calendarMode === 'month') newDate.setMonth(newDate.getMonth() + 1); else if (calendarMode === 'week') newDate.setDate(newDate.getDate() + 7); else newDate.setDate(newDate.getDate() + 1); setCalendarDate(newDate); };
   const handleDayClick = (dateStr) => { const [y, m, d] = dateStr.split('-'); setCalendarDate(new Date(y, m - 1, d)); setCalendarMode('day'); };
 
-
-  // --- COMPONENT VISTA CALENDARI ---
   const renderCalendarView = () => {
     const formatterMonthYear = new Intl.DateTimeFormat('ca-ES', { month: 'long', year: 'numeric' });
     const formatterDayMonth = new Intl.DateTimeFormat('ca-ES', { day: 'numeric', month: 'long', weekday: 'long' });
-    
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
     const daysOfWeek = ['Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds', 'Dg'];
@@ -1237,29 +1410,19 @@ export default function ModumCoachApp() {
                           <p className="text-sm text-zinc-500">{w.blocks.warmup.length} blocs d'escalfament, {w.blocks.wod.length} WODs</p>
                         </div>
                         <div className="flex gap-2 flex-wrap justify-end items-start">
-                          
                           <button onClick={() => handleDeleteClick(w)} className="p-2 text-red-500 bg-white border border-red-100 rounded-lg hover:bg-red-500 hover:text-white transition-colors mr-2">
                             <Trash2 size={18} />
                           </button>
-
-                          {/* NOU BOTÓ PDF */}
                           <button onClick={() => generateWorkoutPDF(w)} className="px-3 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-lg text-sm font-medium hover:bg-zinc-100 flex items-center gap-1">
                             <FileText size={16} /> PDF
                           </button>
-
                           <button onClick={() => { setWorkoutToDuplicate(w); setDupStartDate(w.date); setDupEndDate(w.date); setShowDuplicateModal(true); }} className="px-3 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-lg text-sm font-medium hover:bg-zinc-100 flex items-center gap-1">
                             <Copy size={16} /> Duplicar
                           </button>
-                          
                           <button onClick={() => { setWorkout(w); setCurrentView('coach'); }} className="px-3 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800">
                             Editar Sessió
                           </button>
-                          
-                          {/* BOTÓ SELECCIÓ TV MODIFICAT */}
-                          <button 
-                            onClick={() => toggleTVWorkout(w)} 
-                            className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${isSelectedForTV ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
-                          >
+                          <button onClick={() => toggleTVWorkout(w)} className={`px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${isSelectedForTV ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}>
                             <MonitorPlay size={16} /> {isSelectedForTV ? 'A la cua de la TV' : 'Enviar a TV'}
                           </button>
                         </div>
@@ -1276,7 +1439,6 @@ export default function ModumCoachApp() {
 
     return (
       <div className="min-h-screen bg-zinc-100 p-4 md:p-8 font-sans text-zinc-900 pb-24 relative">
-        {/* Modals d'exportació, duplicació i eliminació exactament iguals que abans */}
         {showExportModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full animate-in fade-in zoom-in duration-200">
@@ -1408,7 +1570,7 @@ export default function ModumCoachApp() {
       </datalist>
 
       <div className="max-w-3xl mx-auto space-y-6 w-full p-4 md:p-8 flex-1">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-zinc-200 relative z-20">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-zinc-200 relative z-[60]">
           <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 rounded-l-xl"></div>
           <div className="flex justify-between items-center mb-4 border-b border-zinc-100 pb-4">
              <h1 className="text-2xl font-bold text-zinc-800 flex items-center gap-2"><Smartphone className="text-orange-500" /> Edició d'Entrenament</h1>
@@ -1438,7 +1600,7 @@ export default function ModumCoachApp() {
                 className="w-full p-2 border border-zinc-300 rounded focus:ring-2 focus:ring-orange-500 outline-none bg-white" 
               />
               {showClientSearch && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-2xl max-h-60 overflow-y-auto">
+                <div className="absolute z-[100] w-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-2xl max-h-60 overflow-y-auto top-full left-0">
                   <div 
                     onMouseDown={(e) => { e.preventDefault(); handleWorkoutChange('clientId', ''); setShowClientSearch(false); }} 
                     className="p-3 hover:bg-orange-50 cursor-pointer text-sm text-zinc-500 italic border-b border-zinc-100"
@@ -1467,7 +1629,7 @@ export default function ModumCoachApp() {
         {['warmup', 'wod', 'accessories'].map((blockKey) => {
           const blockNames = { warmup: 'ESCALFAMENT', wod: 'WOD (Part Principal)', accessories: 'COMPLEMENTS' };
           return (
-            <div key={blockKey} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-200">
+            <div key={blockKey} className="bg-white p-6 rounded-xl shadow-sm border border-zinc-200 relative z-10">
               <div className="flex justify-between items-center mb-4 border-b border-zinc-100 pb-2">
                 <h2 className="text-xl font-bold text-zinc-800 uppercase">{blockNames[blockKey]}</h2>
                 <button onClick={() => addSubSection(blockKey)} className="flex items-center gap-1 text-sm bg-zinc-800 text-white px-3 py-1.5 rounded hover:bg-orange-500 transition-colors"><Plus size={16} /> Afegir Sub-apartat</button>
@@ -1516,7 +1678,7 @@ export default function ModumCoachApp() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 w-full mt-4 p-4 md:py-5 bg-white/95 backdrop-blur-md border-t border-zinc-200 shadow-[0_-8px_15px_rgba(0,0,0,0.05)] flex justify-center z-20">
+      <div className="sticky bottom-0 w-full mt-4 p-4 md:py-5 bg-white/95 backdrop-blur-md border-t border-zinc-200 shadow-[0_-8px_15px_rgba(0,0,0,0.05)] flex justify-center z-50">
         <button onClick={saveWorkoutToDB} className="flex items-center gap-2 bg-zinc-900 text-white px-8 py-3 rounded-full font-bold hover:bg-orange-500 transition-colors shadow-lg">
           <Save size={20} /> Guardar Entrenament al Cloud
         </button>
@@ -1539,8 +1701,7 @@ export default function ModumCoachApp() {
     const isDual = tvWorkouts.length === 2;
 
     return (
-      <div className="relative min-h-full w-full bg-[#000000] text-white flex flex-col lg:flex-row font-sans p-2 sm:p-4 gap-4 overflow-y-auto">
-        {/* Tornar botó */}
+      <div className="relative min-h-screen w-full bg-[#000000] text-white flex flex-col lg:flex-row font-sans p-4 gap-4 overflow-y-auto">
         <button onClick={() => setCurrentView('calendar')} className="fixed top-4 left-4 z-50 bg-black/50 hover:bg-orange-500 text-white p-2 md:p-3 rounded-full backdrop-blur-md transition-all border border-white/10 shadow-lg" title="Tornar al Calendari">
           <ChevronLeft size={24} />
         </button>
@@ -1550,9 +1711,9 @@ export default function ModumCoachApp() {
           const formattedDateForTV = `${d}/${m}/${y}`;
 
           return (
-            <div key={workoutData.id} className={`flex flex-col ${isDual ? 'w-full lg:w-1/2' : 'w-full'} gap-4`}>
+            <div key={workoutData.id} className={`flex flex-col ${isDual ? 'w-full lg:w-1/2' : 'w-full max-w-6xl mx-auto'} gap-4`}>
               
-              <header className={`flex flex-col sm:flex-row justify-between items-center px-6 py-4 bg-[#1c1c1e] rounded-3xl border border-white/5 shadow-2xl shrink-0 gap-4 sm:gap-0 mt-14 sm:mt-0`}>
+              <header className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 bg-[#1c1c1e] rounded-3xl border border-white/5 shadow-2xl shrink-0 gap-4 sm:gap-0 mt-16 sm:mt-0">
                 <div className="w-full sm:w-1/3 text-center sm:text-left">
                   <h1 className={`font-black text-white uppercase tracking-tight leading-none truncate ${isDual ? 'text-2xl lg:text-3xl' : 'text-3xl lg:text-5xl'}`}>{workoutData.sessionName}</h1>
                 </div>
@@ -1569,18 +1730,16 @@ export default function ModumCoachApp() {
               </header>
 
               <main className={`flex-1 flex ${isDual ? 'flex-col' : 'flex-col xl:flex-row'} gap-4 min-h-0`}>
-                
-                {/* COLUMNA ESCALFAMENT */}
-                <div className={`flex flex-col gap-4 overflow-hidden ${isDual ? 'shrink-0 max-h-[45%]' : 'shrink-0 xl:w-1/2 xl:h-full'}`}>
+                <div className={`flex flex-col gap-4 ${isDual ? '' : 'xl:w-1/2'}`}>
                   {workoutData.blocks.warmup.length > 0 && (
-                    <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex items-center gap-4">
                        <h2 className={`font-black text-zinc-500 uppercase tracking-widest leading-none ${isDual ? 'text-xl' : 'text-2xl'}`}>Escalfament</h2>
                        <div className="flex-1 h-px bg-white/10"></div>
                     </div>
                   )}
-                  <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}>
+                  <div className="flex flex-col gap-4">
                     {workoutData.blocks.warmup.map((sub) => (
-                      <div key={sub.id} className="bg-[#1c1c1e] rounded-2xl p-5 md:p-6 border border-white/5 shrink-0 shadow-lg">
+                      <div key={sub.id} className="bg-[#1c1c1e] rounded-2xl p-5 md:p-6 border border-white/5 shadow-lg">
                         <h3 className={`font-bold text-white mb-4 tracking-tight flex items-center gap-3 leading-none uppercase ${isDual ? 'text-xl' : 'text-2xl'}`}>
                           <div className={`w-2 bg-orange-500 rounded-full ${isDual ? 'h-6' : 'h-8'}`}></div>{sub.title}
                         </h3>
@@ -1601,7 +1760,7 @@ export default function ModumCoachApp() {
                   </div>
                   
                   {(workoutData.bottomNotes || workoutData.blocks.accessories.length > 0) && (
-                    <div className="bg-[#1c1c1e] rounded-2xl p-4 md:p-5 border border-white/5 flex items-center gap-4 shrink-0 shadow-lg">
+                    <div className="bg-[#1c1c1e] rounded-2xl p-4 md:p-5 border border-white/5 flex items-center gap-4 shadow-lg">
                       <div className="bg-orange-500/10 p-3 rounded-xl shrink-0">
                         <Clock className={`text-orange-500 ${isDual ? 'w-6 h-6' : 'w-8 h-8'}`} />
                       </div>
@@ -1610,23 +1769,22 @@ export default function ModumCoachApp() {
                   )}
                 </div>
 
-                {/* COLUMNA WOD */}
-                <div className={`flex flex-col bg-[#1c1c1e] rounded-3xl p-5 md:p-8 shadow-2xl overflow-y-auto ${isDual ? 'flex-1' : 'flex-1 xl:w-1/2 xl:h-full'}`} style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}>
+                <div className={`flex flex-col gap-4 ${isDual ? '' : 'xl:w-1/2'}`}>
                   {workoutData.blocks.wod.length > 0 && (
-                    <div className="flex items-center gap-4 shrink-0 mb-6">
+                    <div className="flex items-center gap-4">
                        <h2 className={`font-black text-zinc-500 uppercase tracking-widest leading-none ${isDual ? 'text-xl' : 'text-2xl'}`}>WOD</h2>
                        <div className="flex-1 h-px bg-white/10"></div>
                     </div>
                   )}
                   {workoutData.blocks.wod.map((wodBlock) => (
-                    <div key={wodBlock.id} className="flex-1 flex flex-col shrink-0 mb-8 last:mb-0">
+                    <div key={wodBlock.id} className="bg-[#1c1c1e] rounded-3xl p-5 md:p-8 shadow-2xl flex flex-col mb-4 last:mb-0">
                       <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/5">
                         <div className="bg-gradient-to-br from-orange-400 to-orange-600 p-3 md:p-4 rounded-2xl shadow-lg shadow-orange-500/20">
                            <Target className={`text-white ${isDual ? 'w-6 h-6 md:w-8 md:h-8' : 'w-8 h-8 md:w-10 md:h-10'}`} strokeWidth={2.5} />
                         </div>
                         <h2 className={`font-black tracking-tight text-white uppercase leading-none ${isDual ? 'text-2xl md:text-3xl' : 'text-3xl md:text-5xl'}`}>{wodBlock.title}</h2>
                       </div>
-                      <div className="flex-1 flex flex-col justify-center gap-4">
+                      <div className="flex flex-col gap-4">
                         {wodBlock.exercises.map((ex, i) => (
                           <div key={i} className={`flex items-center gap-4 p-4 md:p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors`}>
                             <div className={`rounded-full bg-zinc-800 flex items-center justify-center shrink-0 border border-white/10 shadow-inner ${isDual ? 'w-10 h-10 md:w-14 md:h-14' : 'w-14 h-14 md:w-20 md:h-20'}`}>
@@ -1647,7 +1805,6 @@ export default function ModumCoachApp() {
                     </div>
                   ))}
                 </div>
-                
               </main>
             </div>
           );
@@ -1664,7 +1821,6 @@ export default function ModumCoachApp() {
   if (!user) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#111111] font-sans p-4 relative overflow-hidden">
-        {/* Fons decoratiu */}
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-orange-600/10 blur-[120px] rounded-full pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-zinc-600/10 blur-[120px] rounded-full pointer-events-none"></div>
         
@@ -1703,15 +1859,12 @@ export default function ModumCoachApp() {
           MODUM COACH
         </div>
         <div className="flex items-center gap-2 md:gap-4">
-            
-            {/* Indicador actiu per anar a la TV ràpid si hi ha entrenaments */}
             {tvWorkouts.length > 0 && currentView !== 'tv' && (
               <button onClick={() => setCurrentView('tv')} className="hidden lg:flex items-center gap-2 bg-orange-600 text-white px-4 py-1.5 rounded-full text-sm font-bold animate-pulse hover:bg-orange-500">
                 <MonitorPlay size={16} /> Obrir TV ({tvWorkouts.length}/2)
               </button>
             )}
 
-            {/* CAMPANETA DE NOTIFICACIONS */}
             <div className="relative">
               <button onClick={() => setShowNotifications(!showNotifications)} className="flex items-center justify-center p-2 hover:text-white transition-colors relative" title="Recordatoris de Tests">
                 <Bell size={20} className={notificationsList.length > 0 ? 'text-white animate-bounce' : 'text-zinc-500'} />
@@ -1722,7 +1875,6 @@ export default function ModumCoachApp() {
                 )}
               </button>
 
-              {/* MODAL LLISTA NOTIFICACIONS */}
               {showNotifications && (
                 <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-zinc-200 shadow-2xl rounded-xl z-50 overflow-hidden text-left">
                   <div className="p-3 border-b border-zinc-100 font-bold flex justify-between items-center text-zinc-800 bg-zinc-50">
@@ -1791,7 +1943,6 @@ export default function ModumCoachApp() {
               </button>
             </div>
 
-            {/* Menú compacte per a mòbils */}
             <div className="flex md:hidden bg-zinc-900 rounded-lg p-1">
                <button onClick={() => setCurrentView('calendar')} className={`p-2 rounded-md ${currentView === 'calendar' ? 'bg-orange-500 text-black' : 'hover:text-white'}`}><CalendarDays size={18} /></button>
                <button onClick={() => createWorkoutForDate(todayString)} className={`p-2 rounded-md ${currentView === 'coach' ? 'bg-orange-500 text-black' : 'hover:text-white'}`}><Smartphone size={18} /></button>
@@ -1805,12 +1956,12 @@ export default function ModumCoachApp() {
         </div>
       </nav>
 
-      <div className="flex-1 overflow-auto bg-zinc-900">
-        {currentView === 'calendar' && renderCalendarView()}
-        {currentView === 'coach' && renderCoachView()}
-        {currentView === 'library' && <LibraryView exerciseLibrary={exerciseLibrary} saveExerciseToDB={saveExerciseToDB} />}
-        {currentView === 'clients' && <ClientsView clients={clients} savedWorkouts={savedWorkouts} saveClientToDB={saveClientToDB} deleteClientFromDB={deleteClientFromDB} customPRs={customPRs} handleAddCustomPR={handleAddCustomPR} assignWorkoutToClient={assignWorkoutToClient} removeWorkoutFromClient={removeWorkoutFromClient} clientToOpen={clientToOpen} />}
-        {currentView === 'tv' && renderTVView()}
+      <div className="flex-1 overflow-hidden bg-zinc-900 flex flex-col">
+        {currentView === 'calendar' && <div className="flex-1 overflow-y-auto">{renderCalendarView()}</div>}
+        {currentView === 'coach' && <div className="flex-1 overflow-y-auto">{renderCoachView()}</div>}
+        {currentView === 'library' && <div className="flex-1 overflow-y-auto"><LibraryView exerciseLibrary={exerciseLibrary} saveExerciseToDB={saveExerciseToDB} /></div>}
+        {currentView === 'clients' && <div className="flex-1 overflow-hidden"><ClientsView clients={clients} savedWorkouts={savedWorkouts} saveClientToDB={saveClientToDB} deleteClientFromDB={deleteClientFromDB} customPRs={customPRs} handleAddCustomPR={handleAddCustomPR} assignWorkoutToClient={assignWorkoutToClient} removeWorkoutFromClient={removeWorkoutFromClient} clientToOpen={clientToOpen} /></div>}
+        {currentView === 'tv' && <div className="flex-1 overflow-y-auto">{renderTVView()}</div>}
       </div>
     </div>
   );
